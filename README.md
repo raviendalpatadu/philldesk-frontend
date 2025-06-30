@@ -251,7 +251,7 @@ The production build includes:
 - Environment-specific configurations
 
 ### Deployment Options
-- **Netlify**: \`npm run build && netlify deploy --prod\`
+- **Netlify**: \`npm  run build && netlify deploy --prod\`
 - **Vercel**: \`vercel --prod\`
 - **GitHub Pages**: Using GitHub Actions
 - **Traditional Hosting**: Upload \`dist/\` folder
@@ -298,5 +298,6 @@ For support or questions:
 ---
 
 **Built with ❤️ for modern pharmacy management**
-#   p h i l l d e s k - f r o n t e n d  
+#   p h i l l d e s k - f r o n t e n d 
+ 
  
