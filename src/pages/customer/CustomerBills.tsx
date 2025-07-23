@@ -35,7 +35,8 @@ import {
   ExclamationCircleOutlined,
   EyeOutlined,
   PayCircleOutlined,
-  WalletOutlined
+  WalletOutlined,
+  FileTextOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import customerService, { Bill, PaymentData } from '../../services/customerService'
@@ -44,10 +45,10 @@ const { Title, Text } = Typography
 const { Option } = Select
 
 // ============================================================================
-// Customer Billing History Page (Enhanced with Payment Processing)
+// Customer Bills Component
 // ============================================================================
 
-const BillingHistoryPage: React.FC = () => {
+const CustomerBills: React.FC = () => {
   const [bills, setBills] = useState<Bill[]>([])
   const [filteredBills, setFilteredBills] = useState<Bill[]>([])
   const [loading, setLoading] = useState(true)
@@ -67,12 +68,24 @@ const BillingHistoryPage: React.FC = () => {
   const fetchBills = async () => {
     try {
       setLoading(true)
+      console.log('Fetching bills from backend...')
+      
       const data = await customerService.getMyBills()
-      setBills(data)
-      setFilteredBills(data)
+      console.log('Bills data received:', data)
+      
+      setBills(data || [])
+      setFilteredBills(data || [])
+      
+      if (data && data.length > 0) {
+        message.success(`Loaded ${data.length} bills from backend`)
+      } else {
+        console.log('No bills found')
+      }
     } catch (error) {
-      message.error('Failed to load bills')
-      console.error('Error:', error)
+      console.error('Failed to load bills:', error)
+      message.error('Failed to load bills from backend')
+      setBills([])
+      setFilteredBills([])
     } finally {
       setLoading(false)
     }
@@ -122,8 +135,11 @@ const BillingHistoryPage: React.FC = () => {
     if (!selectedBill) return
 
     try {
+      console.log('Updating payment type:', values.paymentType)
+      
       await customerService.updatePaymentType(selectedBill.id, values.paymentType)
       message.success('Payment type updated successfully')
+      
       setPaymentTypeModalVisible(false)
       await fetchBills()
     } catch (error) {
@@ -137,6 +153,7 @@ const BillingHistoryPage: React.FC = () => {
 
     try {
       setProcessingPayment(true)
+      console.log('Processing payment:', values)
       
       const paymentData: PaymentData = {
         paymentMethod: values.paymentMethod,
@@ -147,8 +164,8 @@ const BillingHistoryPage: React.FC = () => {
       }
 
       const result = await customerService.payOnline(selectedBill.id, paymentData)
-      
       message.success(`Payment processed successfully! Transaction ID: ${result.transactionId}`)
+      
       setPaymentModalVisible(false)
       form.resetFields()
       await fetchBills()
@@ -283,7 +300,7 @@ const BillingHistoryPage: React.FC = () => {
   ]
 
   return (
-    <div>
+    <div style={{ padding: '24px' }}>
       {/* Page Header */}
       <div style={{ marginBottom: '24px' }}>
         <Title level={2}>
@@ -302,7 +319,7 @@ const BillingHistoryPage: React.FC = () => {
             <Statistic
               title="Total Bills"
               value={stats.total}
-              prefix={<DollarOutlined />}
+              prefix={<FileTextOutlined />}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
@@ -649,7 +666,7 @@ const BillingHistoryPage: React.FC = () => {
 
               <Alert
                 message="Secure Payment"
-                description="Your payment information is encrypted and secure. This is a demo system."
+                description="Your payment information is encrypted and secure."
                 type="success"
                 showIcon
                 style={{ marginBottom: '16px' }}
@@ -678,4 +695,4 @@ const BillingHistoryPage: React.FC = () => {
   )
 }
 
-export default BillingHistoryPage
+export default CustomerBills

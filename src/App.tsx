@@ -29,15 +29,27 @@ const PrescriptionManagement = React.lazy(
 const InventoryManagement = React.lazy(
   () => import("@pages/admin/InventoryManagement")
 );
+const PharmacistInventoryManagement = React.lazy(
+  () => import("@pages/pharmacist/InventoryManagement")
+);
+const ReorderManagement = React.lazy(
+  () => import("@pages/pharmacist/ReorderManagement")
+);
 const BillingManagement = React.lazy(
   () => import("@pages/pharmacist/BillingManagement")
 );
 const ReportsPage = React.lazy(() => import("@pages/admin/ReportsPage"));
 const CustomerPrescriptions = React.lazy(
-  () => import("@pages/customer/CustomerPrescriptions")
+  () => import("@pages/customer/CustomerPrescriptions").then(module => ({ default: module.default }))
+);
+const UploadPrescription = React.lazy(
+  () => import("@pages/customer/UploadPrescription")
+);
+const PendingPrescriptions = React.lazy(
+  () => import("@pages/customer/PendingPrescriptions")
 );
 const OrdersPage = React.lazy(() => import("@pages/customer/OrdersPage"));
-const BillingHistoryPage = React.lazy(() => import("@pages/customer/BillingHistoryPage"));
+const CustomerBills = React.lazy(() => import("@pages/customer/CustomerBills"));
 const UserManagement = React.lazy(() => import("@pages/admin/UserManagement"));
 const ProfilePage = React.lazy(() => import("@pages/common/ProfilePage"));
 const SettingsPage = React.lazy(() => import("@pages/admin/SettingsPage"));
@@ -133,7 +145,8 @@ const App: React.FC = () => {
                       path="prescriptions"
                       element={<PrescriptionManagement />}
                     />
-                    <Route path="inventory" element={<InventoryManagement />} />
+                    <Route path="inventory" element={<PharmacistInventoryManagement />} />
+                    <Route path="reorder-management" element={<ReorderManagement />} />
                     <Route path="billing" element={<BillingManagement />} />
                   </Routes>
                 </React.Suspense>
@@ -154,8 +167,17 @@ const App: React.FC = () => {
                     path="prescriptions"
                     element={<CustomerPrescriptions />}
                   />
+                  <Route
+                    path="upload"
+                    element={<UploadPrescription />}
+                  />
+                  <Route
+                    path="pending"
+                    element={<PendingPrescriptions />}
+                  />
                   <Route path="orders" element={<OrdersPage />} />
-                  <Route path="billing" element={<BillingHistoryPage />} />
+                  <Route path="billing" element={<CustomerBills />} />
+                  <Route path="bills" element={<CustomerBills />} />
                 </Routes>
               </React.Suspense>
                  </ProtectedRoute>

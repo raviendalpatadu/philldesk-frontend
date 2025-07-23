@@ -4,7 +4,7 @@
  * Handles prescription-related API calls and business logic
  */
 
-import { api } from '@config/index'
+import { api } from '../config/index'
 
 export interface PrescriptionMetadata {
   id?: string

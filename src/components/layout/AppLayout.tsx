@@ -5,7 +5,7 @@
  * including navigation, header, and content areas.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   Layout,
@@ -35,6 +35,11 @@ import {
   UploadOutlined,
   HistoryOutlined,
   PieChartOutlined,
+  WarningOutlined,
+  AlertOutlined,
+  BoxPlotOutlined,
+  ShopOutlined,
+  DatabaseOutlined
 } from '@ant-design/icons'
 import { useAuthStore, useUserRole } from '@store/authStore'
 
@@ -51,6 +56,79 @@ const AppLayout: React.FC = () => {
   const { user, logout } = useAuthStore()
   const userRole = useUserRole()
   const [collapsed, setCollapsed] = useState(false)
+  const [openKeys, setOpenKeys] = useState<string[]>([])
+
+  // Update openKeys when location changes
+  useEffect(() => {
+    setOpenKeys(getOpenKeys())
+  }, [location.pathname])
+
+  // Handle submenu open/close
+  const handleOpenChange = (keys: string[]) => {
+    setOpenKeys(keys)
+  }
+
+  // Calculate active menu keys based on current location
+  const getActiveKeys = () => {
+    const path = location.pathname
+    const searchParams = new URLSearchParams(location.search)
+    
+    // Handle special cases with query parameters
+    if (path === '/pharmacist/prescriptions') {
+      const status = searchParams.get('status')
+      if (status === 'pending') return ['/pharmacist/prescriptions/pending']
+      if (status === 'approved') return ['/pharmacist/prescriptions/approved']
+      return ['/pharmacist/prescriptions']
+    }
+    
+    if (path === '/pharmacist/inventory') {
+      const filter = searchParams.get('filter')
+      if (filter === 'low-stock') return ['/pharmacist/inventory/low-stock']
+      if (filter === 'out-of-stock') return ['/pharmacist/inventory/out-of-stock']
+      return ['/pharmacist/inventory']
+    }
+    
+    if (path === '/pharmacist/billing') {
+      const view = searchParams.get('view')
+      if (view === 'history') return ['/pharmacist/sales']
+      return ['/pharmacist/billing']
+    }
+    
+    // Default to exact path match
+    return [path]
+  }
+
+  // Calculate open submenu keys
+  const getOpenKeys = () => {
+    const path = location.pathname
+    const openKeys: string[] = []
+    
+    if (path.startsWith('/pharmacist/prescriptions')) {
+      openKeys.push('prescriptions')
+    }
+    if (path.startsWith('/pharmacist/inventory') || path === '/pharmacist/reorder-management') {
+      openKeys.push('inventory')
+    }
+    if (path.startsWith('/pharmacist/billing')) {
+      openKeys.push('billing')
+    }
+    if (path.startsWith('/admin/')) {
+      if (path.includes('/inventory') || path.includes('/users')) {
+        openKeys.push('management')
+      }
+      if (path.includes('/reports') || path.includes('/analytics')) {
+        openKeys.push('analytics')
+      }
+    }
+    if (path.startsWith('/customer/prescriptions') || path.startsWith('/customer/upload') || path.startsWith('/customer/pending')) {
+      openKeys.push('prescriptions')
+    }
+    if (path.startsWith('/customer/orders') || path.startsWith('/customer/billing')) {
+      openKeys.push('orders')
+    }
+    
+    return openKeys
+  }
 
   // Calculate notification count based on user role
   const getNotificationCount = () => {
@@ -127,7 +205,7 @@ const AppLayout: React.FC = () => {
                 key: '/admin/analytics',
                 icon: <PieChartOutlined />,
                 label: 'Analytics Dashboard',
-                onClick: () => navigate('/admin/reports'),
+                onClick: () => navigate('/admin/analytics'),
               },
             ],
           },
@@ -190,10 +268,45 @@ const AppLayout: React.FC = () => {
             ],
           },
           {
-            key: '/pharmacist/inventory',
-            icon: <MedicineBoxOutlined />,
-            label: 'Inventory',
-            onClick: () => navigate('/pharmacist/inventory'),
+            key: 'inventory',
+            icon: <BoxPlotOutlined />,
+            label: 'Inventory Management',
+            children: [
+              {
+                key: '/pharmacist/inventory',
+                icon: <DatabaseOutlined />,
+                label: 'All Inventory',
+                onClick: () => navigate('/pharmacist/inventory'),
+              },
+              {
+                key: '/pharmacist/inventory/low-stock',
+                icon: <WarningOutlined />,
+                label: (
+                  <Space>
+                    Low Stock Items
+                    <Badge count={3} size="small" />
+                  </Space>
+                ),
+                onClick: () => navigate('/pharmacist/inventory?filter=low-stock'),
+              },
+              {
+                key: '/pharmacist/inventory/out-of-stock',
+                icon: <AlertOutlined />,
+                label: (
+                  <Space>
+                    Out of Stock
+                    <Badge count={1} size="small" />
+                  </Space>
+                ),
+                onClick: () => navigate('/pharmacist/inventory?filter=out-of-stock'),
+              },
+              {
+                key: '/pharmacist/reorder-management',
+                icon: <ShopOutlined />,
+                label: 'Reorder Management',
+                onClick: () => navigate('/pharmacist/reorder-management'),
+              },
+            ],
           },
           {
             key: 'billing',
@@ -248,13 +361,13 @@ const AppLayout: React.FC = () => {
                 onClick: () => navigate('/customer/prescriptions'),
               },
               {
-                key: '/customer/prescriptions/upload',
+                key: '/customer/upload',
                 icon: <UploadOutlined />,
                 label: 'Upload New',
-                onClick: () => navigate('/customer/prescriptions?action=upload'),
+                onClick: () => navigate('/customer/upload'),
               },
               {
-                key: '/customer/prescriptions/pending',
+                key: '/customer/pending',
                 icon: <ClockCircleOutlined />,
                 label: (
                   <Space>
@@ -262,7 +375,7 @@ const AppLayout: React.FC = () => {
                     <Badge count={3} size="small" />
                   </Space>
                 ),
-                onClick: () => navigate('/customer/prescriptions?status=pending'),
+                onClick: () => navigate('/customer/pending'),
               },
               {
                 key: '/customer/prescriptions/completed',
@@ -286,7 +399,7 @@ const AppLayout: React.FC = () => {
               {
                 key: '/customer/billing',
                 icon: <ShoppingCartOutlined />,
-                label: 'Billing History',
+                label: 'Bills & Payments',
                 onClick: () => navigate('/customer/billing'),
               },
             ],
@@ -336,7 +449,20 @@ const AppLayout: React.FC = () => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       {/* Sidebar */}
-      <Sider trigger={null} collapsible collapsed={collapsed}>
+      <Sider 
+        trigger={null} 
+        collapsible 
+        collapsed={collapsed}
+        style={{
+          overflow: 'auto',
+          height: '100vh',
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          zIndex: 100,
+        }}
+      >
         <div
           style={{
             height: '64px',
@@ -364,13 +490,16 @@ const AppLayout: React.FC = () => {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={getActiveKeys()}
+          openKeys={openKeys}
+          onOpenChange={handleOpenChange}
           items={getMenuItems()}
+          style={{ border: 'none' }}
         />
       </Sider>
 
       {/* Main Layout */}
-      <Layout>
+      <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'margin-left 0.2s' }}>
         {/* Header */}
         <Header
           style={{
@@ -378,8 +507,11 @@ const AppLayout: React.FC = () => {
             background: '#fff',
             display: 'flex',
             alignItems: 'center',
+            position: 'sticky',
+            top: 0,
+            zIndex: 99,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
             justifyContent: 'space-between',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
           }}
         >
           <Space>
@@ -435,7 +567,8 @@ const AppLayout: React.FC = () => {
             padding: '24px',
             background: '#fff',
             borderRadius: '8px',
-            minHeight: 280,
+            minHeight: 'calc(100vh - 112px)',
+            overflow: 'auto',
           }}
         >
           <Outlet />

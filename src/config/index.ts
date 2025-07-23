@@ -192,6 +192,35 @@ export const SUCCESS_MESSAGES = {
 } as const
 
 // ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Convert relative file URL to absolute URL with authentication token
+ * @param relativeUrl - The relative URL returned from the backend (e.g., "/uploads/prescriptions/filename.pdf")
+ * @returns Absolute URL with auth token that can be used in the frontend
+ */
+export const getFileUrl = (relativeUrl: string): string => {
+  if (!relativeUrl) return ''
+  
+  // If it's already an absolute URL, return as is
+  if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+    return relativeUrl
+  }
+  
+  // Remove leading slash if present and construct absolute URL
+  const cleanUrl = relativeUrl.startsWith('/') ? relativeUrl.slice(1) : relativeUrl
+  const baseUrl = API_CONFIG.BASE_URL.replace('/api', '') // Remove /api suffix to get base server URL
+  const fullUrl = `${baseUrl}/${cleanUrl}`
+  
+  // The backend expects Authorization header for file access, but since we're using this URL
+  // directly in img src, iframe src, etc., we need to handle auth differently
+  // For now, return the full URL - the actual auth will be handled by axios interceptors
+  // when downloading files programmatically
+  return fullUrl
+}
+
+// ============================================================================
 // Development Configuration
 // ============================================================================
 
@@ -266,5 +295,6 @@ export default {
   STATUS_CONFIG,
   NOTIFICATION_CONFIG,
   STORAGE_KEYS,
+  getFileUrl,
   api,
 }
