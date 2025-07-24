@@ -285,7 +285,7 @@ const InventoryManagement: React.FC = () => {
       minimumStock: item.minimumStock || item.reorderLevel || 0,
       maximumStock: item.maximumStock || (item.reorderLevel ? item.reorderLevel * 5 : 100),
       status: item.status || calculateStatus(item),
-      ndc: item.ndc || 'N/A',
+      ndc: item.id || 'N/A',
       form: item.form || item.dosageForm || 'Unknown',
       location: item.location || 'Main Pharmacy',
       supplier: item.supplier || 'Unknown Supplier',
@@ -330,8 +330,7 @@ const InventoryManagement: React.FC = () => {
       filtered = filtered.filter(item => 
         item.name.toLowerCase().includes(searchText.toLowerCase()) ||
         item.category.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.manufacturer.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.ndc.includes(searchText)
+        item.manufacturer.toLowerCase().includes(searchText.toLowerCase())
       )
     }
 

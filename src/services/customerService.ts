@@ -27,6 +27,18 @@ const transformBillData = (apiData: any): Bill => {
     paymentMethod: apiData.paymentMethod,
     paymentType: apiData.paymentType,
     notes: apiData.notes,
+    billItems: apiData.billItems ? apiData.billItems.map((item: any) => ({
+      id: item.id,
+      medicationName: item.medicineName,
+      manufacturer: item.manufacturer,
+      batchNumber: item.batchNumber,
+      strength: item.strength,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
+      dosage: item.dosage,
+      instructions: item.notes
+    })) : [],
     createdAt: convertDateArrayToString(apiData.createdAt),
     updatedAt: apiData.updatedAt ? convertDateArrayToString(apiData.updatedAt) : undefined,
     paidAt: apiData.paidAt ? convertDateArrayToString(apiData.paidAt) : undefined,
@@ -126,6 +138,9 @@ export interface Prescription {
 export interface BillItem {
   id?: number;
   medicationName: string;
+  manufacturer?: string;
+  batchNumber?: string;
+  strength?: string; 
   quantity: number;
   unitPrice: number;
   totalPrice: number;

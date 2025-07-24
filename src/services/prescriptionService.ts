@@ -20,11 +20,21 @@ export interface PrescriptionMetadata {
   pharmacistId?: string
   reviewedAt?: string
   estimatedCost?: number
-  medications?: Array<{
-    name: string
+  prescriptionItems?: Array<{
+    id?: number
+    medicine: {
+      id: number
+      name: string
+      strength?: string
+      form?: string
+      ndc?: string
+      unitPrice: number
+      stockQuantity: number
+    }
     quantity: number
-    dosage: string
-    instructions: string
+    instructions?: string
+    daysSupply?: number
+    refills?: number
   }>
 }
 
@@ -112,24 +122,6 @@ class PrescriptionService {
     } catch (error) {
       console.error('Error deleting prescription:', error)
       throw new Error('Failed to delete prescription')
-    }
-  }
-
-  /**
-   * Add medications to prescription
-   */
-  async addMedications(
-    id: string, 
-    medications: PrescriptionMetadata['medications']
-  ): Promise<PrescriptionMetadata> {
-    try {
-      const response = await api.patch(`/prescriptions/${id}/medications`, {
-        medications
-      })
-      return response.data
-    } catch (error) {
-      console.error('Error adding medications:', error)
-      throw new Error('Failed to add medications')
     }
   }
 

@@ -46,7 +46,8 @@ import {
   WarningOutlined,
   ShoppingCartOutlined,
   PhoneOutlined,
-  BarChartOutlined
+  BarChartOutlined,
+  DollarOutlined
 } from '@ant-design/icons'
 import { pharmacistService, TransformedBill } from '../../services/pharmacistService'
 
@@ -69,17 +70,20 @@ const BillingManagement: React.FC = () => {
   // State for bills and UI
   const [pendingBills, setPendingBills] = useState<TransformedBill[]>([])
   const [generatedInvoices, setGeneratedInvoices] = useState<TransformedBill[]>([])
+  const [readyForPickup, setReadyForPickup] = useState<any[]>([])
   const [filteredBills, setFilteredBills] = useState<TransformedBill[]>([])
   const [selectedBill, setSelectedBill] = useState<TransformedBill | null>(null)
+  const [selectedPickup, setSelectedPickup] = useState<any | null>(null)
   const [billingModalVisible, setBillingModalVisible] = useState(false)
   const [paymentModalVisible, setPaymentModalVisible] = useState(false)
-  const [invoiceDetailsVisible, setInvoiceDetailsVisible] = useState(false)
+  const [pickupBillModalVisible, setPickupBillModalVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [activeTab, setActiveTab] = useState('pending')
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
   const [paymentForm] = Form.useForm()
+  const [pickupPaymentForm] = Form.useForm()
 
   // Load initial data
   useEffect(() => {
@@ -92,14 +96,16 @@ const BillingManagement: React.FC = () => {
       setLoading(true)
       console.log('Loading billing data from backend...')
 
-      // Load pending bills and paid bills in parallel
-      const [pendingResponse, paidResponse] = await Promise.all([
+      // Load pending bills, paid bills, and ready-for-pickup prescriptions in parallel
+      const [pendingResponse, paidResponse, pickupResponse] = await Promise.all([
         pharmacistService.getPendingBills(),
-        pharmacistService.getPaidBills()
+        pharmacistService.getPaidBills(),
+        pharmacistService.getPrescriptionsReadyForPickup()
       ])
 
       console.log('Pending bills:', pendingResponse)
       console.log('Paid bills:', paidResponse)
+      console.log('Ready for pickup:', pickupResponse)
 
       // Set pending bills (empty array if no data)
       const pendingData = pendingResponse || []
@@ -121,6 +127,16 @@ const BillingManagement: React.FC = () => {
       } else {
         message.info('No invoices found')
       }
+
+      // Set ready-for-pickup prescriptions
+      const pickupData = pickupResponse || []
+      setReadyForPickup(pickupData)
+      
+      if (pickupData.length > 0) {
+        message.success(`Loaded ${pickupData.length} prescriptions ready for pickup`)
+      } else {
+        message.info('No prescriptions ready for pickup')
+      }
     } catch (error) {
       console.error('Failed to load billing data:', error)
       message.error('Failed to load billing data from backend')
@@ -133,12 +149,52 @@ const BillingManagement: React.FC = () => {
     }
   }
 
+  // Collect payment for pickup
+  const collectPickupPayment = async (prescriptionId: string, paymentData: any) => {
+    try {
+      setLoading(true)
+      console.log('Collecting payment for prescription:', prescriptionId, paymentData)
+
+      await pharmacistService.collectPayment(prescriptionId, paymentData)
+      message.success('Payment collected successfully and prescription dispensed!')
+      
+      // Refresh data
+      await loadBillingData()
+      setPickupBillModalVisible(false)
+      pickupPaymentForm.resetFields()
+    } catch (error) {
+      console.error('Error collecting payment:', error)
+      message.error('Failed to collect payment. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle pickup payment submission
+  const handlePickupPaymentSubmit = async (values: any) => {
+    if (!selectedPickup) return
+
+    await collectPickupPayment(selectedPickup.id.toString(), {
+      paymentMethod: values.paymentMethod,
+      notes: values.notes
+    })
+  }
+
+  // Open combined pickup bill and payment modal
+  const openPickupBillModal = (prescription: any) => {
+    setSelectedPickup(prescription)
+    setSelectedBill(prescription) // Set bill data for viewing
+    setPickupBillModalVisible(true)
+    pickupPaymentForm.resetFields()
+  }
+
   // Calculate statistics
   const stats = {
     pendingBills: pendingBills.length,
     totalPendingAmount: pendingBills.reduce((sum, bill) => sum + (bill.total || bill.totalAmount || 0), 0),
     readyForBilling: pendingBills.filter(bill => bill.status === 'Ready for Billing').length,
     insuranceVerification: pendingBills.filter(bill => bill.status === 'Insurance Verification').length,
+    readyForPickup: readyForPickup.length,
     totalInvoices: generatedInvoices.length,
     paidInvoices: generatedInvoices.filter(inv => inv.status === 'Paid').length,
     totalRevenue: generatedInvoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0),
@@ -286,10 +342,16 @@ const BillingManagement: React.FC = () => {
     }
   }
 
-  // View invoice details
+  // View invoice details - can be used for both regular bills and pickup bills
   const viewInvoiceDetails = (invoice: any) => {
     setSelectedBill(invoice)
-    setInvoiceDetailsVisible(true)
+    // Check if this is a pickup prescription vs regular bill
+    if (invoice.status === 'READY_FOR_PICKUP' || invoice.prescriptionNumber) {
+      setSelectedPickup(invoice)
+      setPickupBillModalVisible(true)
+    } else {
+      setPickupBillModalVisible(true) // Use same modal for consistency
+    }
   }
 
   // Get status display
@@ -312,6 +374,91 @@ const BillingManagement: React.FC = () => {
     )
   }
 
+  // Pickup columns for ready-for-pickup prescriptions
+  const pickupColumns = [
+    {
+      title: 'Prescription Details',
+      key: 'prescriptionDetails',
+      width: 200,
+      render: (_: any, record: any) => (
+        <Space direction="vertical" size="small">
+          <Text strong>{record.prescriptionNumber || `RX-${record.id}`}</Text>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            Customer: {record.customer?.firstName} {record.customer?.lastName}
+          </Text>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            Doctor: {record.doctorName || 'Not specified'}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Customer',
+      key: 'customer',
+      width: 150,
+      render: (_: any, record: any) => (
+        <Space direction="vertical" size="small">
+          <Text>{record.customerName}</Text>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            {record.customerEmail}
+          </Text>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            {record.customerPhone}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Bill Amount',
+      key: 'totalAmount',
+      width: 120,
+      render: (_: any, record: any) => {
+        // Fetch bill amount from associated bill
+        return <Text strong>Rs. {record.totalAmount?.toFixed(2) || '0.00'}</Text>
+      },
+    },
+    {
+      title: 'Ready Since',
+      key: 'approvedAt',
+      dataIndex: 'approvedAt',
+      width: 120,
+      render: (_: any, record: any) => (
+        <Text type="secondary">
+          {record.approvedAt ? new Date(record.approvedAt).toLocaleDateString() : 'Unknown'}
+        </Text>
+      ),
+    },
+    {
+      title: 'Status',
+      key: 'status',
+      width: 120,
+      render: () => (
+        <Tag color="orange" icon={<ClockCircleOutlined />}>
+          Ready for Pickup
+        </Tag>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 180,
+      render: (_: any, record: any) => (
+        <Space direction="vertical" size="small">
+          <Space size="small">
+            <Button
+              type="primary"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => openPickupBillModal(record)}
+            >
+              View Bill & Collect Payment
+            </Button>
+          </Space>
+        </Space>
+      ),
+    },
+  ]
+
   // Pending bills columns
   const pendingBillsColumns = [
     {
@@ -320,9 +467,11 @@ const BillingManagement: React.FC = () => {
       width: 180,
       render: (_: any, record: TransformedBill) => (
         <Space direction="vertical" size="small">
-          <Text strong>{record.orderId || 'No Order ID'}</Text>
+          <Text strong>{record.billNumber || record.orderId || 'No Bill Number'}</Text>
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            {record.prescriptionId ? `Prescription: ${record.prescriptionId}` : 'No Prescription ID'}
+            {record.prescriptionNumber ? `Rx: ${record.prescriptionNumber}` : 
+             record.prescriptionId ? `Prescription ID: ${record.prescriptionId}` : 
+             'No Prescription'}
           </Text>
           <Text type="secondary" style={{ fontSize: '12px' }}>
             {record.orderDate ? new Date(record.orderDate).toLocaleDateString() : 'No date'}
@@ -337,12 +486,21 @@ const BillingManagement: React.FC = () => {
       render: (_: any, record: TransformedBill) => (
         <Space direction="vertical" size="small">
           <Text strong>{record.customerName || 'Unknown Customer'}</Text>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            <PhoneOutlined /> {record.customerPhone || 'No phone'}
-          </Text>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            <MailOutlined /> {record.customerEmail || 'No email'}
-          </Text>
+          {record.customerPhone && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              <PhoneOutlined /> {record.customerPhone}
+            </Text>
+          )}
+          {record.customerEmail && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              <MailOutlined /> {record.customerEmail}
+            </Text>
+          )}
+          {!record.customerPhone && !record.customerEmail && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Customer ID: {record.id}
+            </Text>
+          )}
         </Space>
       ),
     },
@@ -354,35 +512,22 @@ const BillingManagement: React.FC = () => {
       render: (_: any, record: TransformedBill) => (
         <Space direction="vertical" size="small">
           <Text strong>${(record.total || record.totalAmount || 0).toFixed(2)}</Text>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            Items: {record.billItems?.length || 0}
-          </Text>
-          {record.insurance && (
+          {record.subtotal > 0 && (
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              Patient: ${(record.insurance.estimatedCoverage || 0).toFixed(2)}
+              Subtotal: ${record.subtotal.toFixed(2)}
+            </Text>
+          )}
+          {record.discount > 0 && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Discount: -${record.discount.toFixed(2)}
+            </Text>
+          )}
+          {record.tax > 0 && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Tax: +${record.tax.toFixed(2)}
             </Text>
           )}
         </Space>
-      ),
-    },
-    {
-      title: 'Insurance',
-      key: 'insurance',
-      width: 180,
-      render: (_: any, record: TransformedBill) => (
-        record.insurance ? (
-          <Space direction="vertical" size="small">
-            <Text style={{ fontSize: '12px' }}>{record.insurance.provider || 'Unknown Provider'}</Text>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              Coverage: {record.insurance.coverage || 0}%
-            </Text>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              Copay: ${(record.insurance.estimatedCoverage || 0).toFixed(2)}
-            </Text>
-          </Space>
-        ) : (
-          <Text type="secondary">No Insurance</Text>
-        )
       ),
     },
     {
@@ -418,16 +563,6 @@ const BillingManagement: React.FC = () => {
                 icon={<EyeOutlined />} 
                 size="small"
                 onClick={() => viewInvoiceDetails(record)}
-              />
-            </Tooltip>
-            
-            <Tooltip title="Generate Bill">
-              <Button 
-                type="text" 
-                icon={<FileTextOutlined />} 
-                size="small"
-                onClick={() => generateBill(record)}
-                disabled={record.status === 'Insurance Verification'}
               />
             </Tooltip>
             
@@ -545,17 +680,6 @@ const BillingManagement: React.FC = () => {
             />
           </Tooltip>
           
-          {(record.paidAmount || 0) < (record.amount || record.totalAmount || 0) && (
-            <Tooltip title="Process Payment">
-              <Button 
-                type="text" 
-                icon={<CreditCardOutlined />} 
-                size="small"
-                onClick={() => processPayment(record)}
-              />
-            </Tooltip>
-          )}
-          
           <Tooltip title="Send Email">
             <Button 
               type="text" 
@@ -646,6 +770,21 @@ const BillingManagement: React.FC = () => {
               action={
                 <Button size="small" type="primary" onClick={() => setActiveTab('pending')}>
                   View Orders
+                </Button>
+              }
+              style={{ marginBottom: '16px' }}
+            />
+          )}
+
+          {stats.readyForPickup > 0 && (
+            <Alert
+              message={`${stats.readyForPickup} prescriptions ready for pickup`}
+              description="Customers are waiting to collect their medications and pay."
+              type="info"
+              showIcon
+              action={
+                <Button size="small" type="primary" onClick={() => setActiveTab('pickup')}>
+                  View Pickups
                 </Button>
               }
               style={{ marginBottom: '16px' }}
@@ -742,10 +881,26 @@ const BillingManagement: React.FC = () => {
             <Table
               columns={pendingBillsColumns}
               dataSource={filteredBills}
+              rowKey="id"
               pagination={{
                 pageSize: 10,
                 showSizeChanger: true,
                 showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} pending bills`,
+              }}
+              scroll={{ x: 1200 }}
+              size="middle"
+            />
+          </TabPane>
+
+          <TabPane tab={`Ready for Pickup (${stats.readyForPickup})`} key="pickup">
+            <Table
+              columns={pickupColumns}
+              dataSource={readyForPickup}
+              rowKey="id"
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} prescriptions ready for pickup`,
               }}
               scroll={{ x: 1200 }}
               size="middle"
@@ -756,6 +911,7 @@ const BillingManagement: React.FC = () => {
             <Table
               columns={invoicesColumns}
               dataSource={generatedInvoices}
+              rowKey="id"
               pagination={{
                 pageSize: 10,
                 showSizeChanger: true,
@@ -942,93 +1098,199 @@ const BillingManagement: React.FC = () => {
         )}
       </Modal>
 
-      {/* Invoice Details Modal */}
+      {/* Combined Pickup Bill & Payment Modal */}
       <Modal
         title={
           <Space>
             <FileTextOutlined />
-            Invoice Details
+            Bill Details & Payment Collection
           </Space>
         }
-        open={invoiceDetailsVisible}
-        onCancel={() => setInvoiceDetailsVisible(false)}
-        width={900}
+        open={pickupBillModalVisible}
+        onCancel={() => setPickupBillModalVisible(false)}
+        width={1000}
         footer={[
-          <Button key="close" onClick={() => setInvoiceDetailsVisible(false)}>
+          <Button key="close" onClick={() => setPickupBillModalVisible(false)}>
             Close
           </Button>,
-          <Button key="print" icon={<PrinterOutlined />} onClick={() => message.success('Invoice printed!')}>
-            Print
+          <Button key="print" icon={<PrinterOutlined />} onClick={() => message.success('Bill printed!')}>
+            Print Bill
           </Button>,
-          <Button key="email" icon={<MailOutlined />} onClick={() => message.success('Invoice emailed!')}>
-            Email
+          <Button 
+            key="collect" 
+            type="primary" 
+            icon={<DollarOutlined />}
+            loading={loading}
+            onClick={() => pickupPaymentForm.submit()}
+            disabled={!selectedPickup}
+          >
+            Collect Payment
           </Button>,
         ]}
       >
-        {selectedBill && (
+        {(selectedBill || selectedPickup) && (
           <div>
-            <Descriptions column={2} size="small" style={{ marginBottom: '16px' }}>
-              <Descriptions.Item label="Invoice ID">{selectedBill.invoiceId || 'Not Generated'}</Descriptions.Item>
-              <Descriptions.Item label="Order ID">{selectedBill.orderId}</Descriptions.Item>
-              <Descriptions.Item label="Customer">{selectedBill.customerName}</Descriptions.Item>
-              <Descriptions.Item label="Date">{new Date(selectedBill.orderDate || selectedBill.generatedDate || selectedBill.createdAt).toLocaleDateString()}</Descriptions.Item>
-            </Descriptions>
+            {/* Bill Information Section */}
+            <Card 
+              title="Bill Information" 
+              size="small" 
+              style={{ marginBottom: '16px' }}
+            >
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Descriptions column={1} size="small">
+                    <Descriptions.Item label="Prescription Number">
+                      {selectedPickup?.prescriptionNumber || `RX-${selectedPickup?.id}`}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Customer">
+                      {selectedPickup?.customerName || `${selectedPickup?.customer?.firstName} ${selectedPickup?.customer?.lastName}`}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Doctor">
+                      {selectedPickup?.doctorName || 'Not specified'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Phone">
+                      {selectedPickup?.customerPhone || selectedPickup?.customer?.phone || 'Not provided'}
+                    </Descriptions.Item>
+                  </Descriptions>
+                </Col>
+                <Col span={12}>
+                  <Descriptions column={1} size="small">
+                    <Descriptions.Item label="Bill Amount">
+                      <Text strong style={{ fontSize: '18px', color: '#1890ff' }}>
+                        Rs. {selectedPickup?.totalAmount?.toFixed(2) || '0.00'}
+                      </Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Payment Type">
+                      <Tag color="orange">Pay on Pickup</Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Status">
+                      <Tag color="orange" icon={<ClockCircleOutlined />}>
+                        Ready for Pickup
+                      </Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Ready Since">
+                      {selectedPickup?.approvedAt ? new Date(selectedPickup.approvedAt).toLocaleDateString() : 'Unknown'}
+                    </Descriptions.Item>
+                  </Descriptions>
+                </Col>
+              </Row>
+            </Card>
 
-            {selectedBill.items && (
-              <>
-                <Divider orientation="left">Items</Divider>
+            {/* Medicine Items Section */}
+            {selectedPickup?.items && (
+              <Card 
+                title="Prescription Items" 
+                size="small" 
+                style={{ marginBottom: '16px' }}
+              >
                 <Table
-                  dataSource={selectedBill.items.map((item: any, index: number) => ({ ...item, key: index }))}
+                  dataSource={selectedPickup.items.map((item: any, index: number) => ({ ...item, key: index }))}
                   columns={[
-                    { title: 'Item', dataIndex: 'name', key: 'name' },
-                    { title: 'Quantity', dataIndex: 'quantity', key: 'quantity', width: 80 },
+                    { 
+                      title: 'Medicine', 
+                      dataIndex: 'medicineName', 
+                      key: 'name',
+                      render: (text: string, record: any) => (
+                        <Space direction="vertical" size="small">
+                            <Text strong>{text} ({record.strength}) - {record.manufacturer} (Batch: {record.batchNumber})</Text>
+                          {record.dosage && (
+                            <Text type="secondary" style={{ fontSize: '12px' }}>
+                              Dosage: {record.dosage}
+                            </Text>
+                          )}
+                          {record.instructions && (
+                            <Text type="secondary" style={{ fontSize: '12px' }}>
+                              Instructions: {record.instructions}
+                            </Text>
+                          )}
+                        </Space>
+                      )
+                    },
+                    { title: 'Qty', dataIndex: 'quantity', key: 'quantity', width: 60 },
                     { 
                       title: 'Unit Price', 
                       dataIndex: 'unitPrice', 
                       key: 'unitPrice', 
                       width: 100,
-                      render: (price: number) => `$${price.toFixed(2)}`
+                      render: (price: number) => `Rs. ${price?.toFixed(2) || '0.00'}`
                     },
                     { 
                       title: 'Total', 
-                      dataIndex: 'total', 
+                      dataIndex: 'totalPrice', 
                       key: 'total', 
                       width: 100,
-                      render: (total: number) => `$${total.toFixed(2)}`
+                      render: (total: number) => (
+                        <Text strong>Rs. {total?.toFixed(2) || '0.00'}</Text>
+                      )
                     },
                   ]}
                   pagination={false}
                   size="small"
-                  style={{ marginBottom: '16px' }}
                 />
-              </>
+              </Card>
             )}
 
-            <Divider orientation="left">Financial Summary</Divider>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Descriptions column={1} size="small">
-                  <Descriptions.Item label="Subtotal">${selectedBill.subtotal?.toFixed(2) || '0.00'}</Descriptions.Item>
-                  <Descriptions.Item label="Tax">${selectedBill.tax?.toFixed(2) || '0.00'}</Descriptions.Item>
-                  <Descriptions.Item label="Shipping">${selectedBill.shipping?.toFixed(2) || '0.00'}</Descriptions.Item>
-                  <Descriptions.Item label="Discount">-${selectedBill.discount?.toFixed(2) || '0.00'}</Descriptions.Item>
-                </Descriptions>
-              </Col>
-              <Col span={12}>
-                <Descriptions column={1} size="small">
-                  <Descriptions.Item label="Total Amount">${(selectedBill.total || selectedBill.amount)?.toFixed(2)}</Descriptions.Item>
-                  <Descriptions.Item label="Paid Amount">${selectedBill.paidAmount?.toFixed(2) || '0.00'}</Descriptions.Item>
-                  <Descriptions.Item label="Balance Due">
-                    <Text strong style={{ 
-                      fontSize: '16px', 
-                      color: ((selectedBill?.total || selectedBill?.amount || 0) > (selectedBill?.paidAmount || 0)) ? '#ff4d4f' : '#52c41a' 
-                    }}>
-                      ${((selectedBill?.total || selectedBill?.amount || 0) - (selectedBill?.paidAmount || 0)).toFixed(2)}
-                    </Text>
-                  </Descriptions.Item>
-                </Descriptions>
-              </Col>
-            </Row>
+            {/* Payment Collection Section */}
+            <Card 
+              title="Payment Collection" 
+              size="small"
+            >
+              <Alert
+                message="Ready to Collect Payment"
+                description="Select payment method and collect payment from customer. This will mark the prescription as dispensed."
+                type="info"
+                style={{ marginBottom: '16px' }}
+              />
+              
+              <Form 
+                layout="vertical" 
+                form={pickupPaymentForm}
+                onFinish={handlePickupPaymentSubmit}
+              >
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item 
+                      label="Payment Method" 
+                      name="paymentMethod" 
+                      rules={[{ required: true, message: 'Please select a payment method' }]}
+                      initialValue="CASH"
+                    >
+                      <Select placeholder="Select payment method" size="large">
+                        <Option value="CASH">💰 Cash</Option>
+                        <Option value="CARD">💳 Card (Debit/Credit)</Option>
+                        <Option value="BANK_TRANSFER">🏦 Bank Transfer</Option>
+                        <Option value="OTHER">📝 Other</Option>
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item label="Amount to Collect">
+                      <Input 
+                        size="large"
+                        value={`Rs. ${selectedPickup?.totalAmount?.toFixed(2) || '0.00'}`}
+                        disabled
+                        style={{ fontWeight: 'bold', fontSize: '16px' }}
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                
+                <Form.Item label="Notes (Optional)" name="notes">
+                  <Input.TextArea 
+                    rows={2} 
+                    placeholder="Add any notes about the payment collection..."
+                  />
+                </Form.Item>
+              </Form>
+
+              <Alert
+                message="⚠️ Important"
+                description="After collecting payment, the prescription will be marked as DISPENSED and the customer will receive their medication. This action cannot be undone."
+                type="warning"
+                showIcon
+                style={{ marginTop: '16px' }}
+              />
+            </Card>
           </div>
         )}
       </Modal>

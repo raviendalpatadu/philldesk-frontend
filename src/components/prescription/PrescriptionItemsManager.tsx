@@ -42,6 +42,7 @@ interface PrescriptionItemsManagerProps {
   editable?: boolean
   showHeader?: boolean
   taxRate?: number
+  prescriptionStatus?: string // Add prescription status to control editing
 }
 
 const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
@@ -50,7 +51,8 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
   onItemsChange,
   editable = true,
   showHeader = true,
-  taxRate = 0.1
+  taxRate = 0.1,
+  prescriptionStatus = 'PENDING'
 }) => {
   const [items, setItems] = useState<PrescriptionItem[]>(initialItems)
   const [loading, setLoading] = useState(false)
@@ -58,7 +60,11 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
   const [categories, setCategories] = useState<string[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [medicineOptions, setMedicineOptions] = useState<Array<{ value: string; label: React.ReactNode; medicine: Medicine }>>([])
-  const searchTimeoutRef = useRef<number>()
+  const [itemsToDelete, setItemsToDelete] = useState<Set<number>>(new Set()) // Track items marked for deletion
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Check if editing is allowed based on prescription status
+  const isEditingAllowed = editable && (prescriptionStatus === 'PENDING' || prescriptionStatus === 'Pending Review')
 
   useEffect(() => {
     if (prescriptionId) {
@@ -67,23 +73,27 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
     loadCategories()
   }, [prescriptionId])
 
+  // Cleanup effect
   useEffect(() => {
-    if (onItemsChange) {
-      const pricing = prescriptionItemsService.calculatePricing(items, taxRate)
-      onItemsChange(items, pricing.total)
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
     }
-  }, [items, onItemsChange, taxRate])
+  }, [])
 
   const loadPrescriptionItems = async () => {
     if (!prescriptionId) return
 
     try {
       setLoading(true)
+      console.log('Loading prescription items for ID:', prescriptionId)
       const prescriptionItems = await prescriptionItemsService.getPrescriptionItems(prescriptionId)
+      console.log('Loaded prescription items:', prescriptionItems)
       setItems(prescriptionItems)
     } catch (error) {
       console.error('Error loading prescription items:', error)
-      message.error('Failed to load prescription items')
+      message.error('Failed to load prescription items. Please refresh and try again.')
     } finally {
       setLoading(false)
     }
@@ -91,10 +101,13 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
 
   const loadCategories = async () => {
     try {
+      console.log('Loading medicine categories...')
       const categoryList = await prescriptionItemsService.getMedicineCategories()
+      console.log('Loaded categories:', categoryList)
       setCategories(categoryList)
     } catch (error) {
       console.error('Error loading categories:', error)
+      message.error('Failed to load medicine categories')
     }
   }
 
@@ -111,9 +124,12 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
 
       try {
         setSearchLoading(true)
+        console.log('Searching medicines with query:', query)
         const results = await prescriptionItemsService.searchMedicines(query)
+        console.log('Search results:', results)
+        
         const options = results.map(medicine => ({
-          value: prescriptionItemsService.formatMedicineName(medicine),
+          value: medicine.id.toString(),
           label: (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
@@ -134,9 +150,11 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
           medicine
         }))
         setMedicineOptions(options)
+        console.log('Medicine options set:', options.length)
       } catch (error) {
         console.error('Error searching medicines:', error)
         setMedicineOptions([])
+        message.error('Failed to search medicines. Please check your connection.')
       } finally {
         setSearchLoading(false)
       }
@@ -147,33 +165,55 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
     const newItem: PrescriptionItem = {
       medicineId: 0,
       quantity: 1,
+      dosage: '',
+      frequency: '',
+      instructions: '',
       unitPrice: 0,
       totalPrice: 0,
-      instructions: '',
-      dosageForm: 'Tablet'
+      isDispensed: false
     }
     setItems([...items, newItem])
+    console.log('Added new item. Total items:', items.length + 1)
   }
 
   const handleRemoveItem = (index: number) => {
+    const item = items[index]
+    
+    if (item.id) {
+      // Existing item: mark for deletion
+      setItemsToDelete(prev => new Set([...prev, item.id!]))
+      message.info('Item marked for deletion. Click "Save Items" to confirm changes.')
+    }
+    
+    // Remove from current items list (both new and existing items)
     const newItems = items.filter((_, i) => i !== index)
     setItems(newItems)
   }
 
-  const handleMedicineSelect = async (value: string, option: any, index: number) => {
-    if (!option?.medicine) return
+  const handleMedicineSelect = async (_value: string, option: any, index: number) => {
+    if (!option?.medicine) {
+      console.error('No medicine found in option:', option)
+      return
+    }
 
     const medicine = option.medicine as Medicine
     const newItems = [...items]
     
+    console.log('Selecting medicine:', medicine.name, 'for index:', index)
+    
     // Check availability
-    const isAvailable = await prescriptionItemsService.checkMedicineAvailability(
-      medicine.id, 
-      newItems[index].quantity || 1
-    )
+    try {
+      const isAvailable = await prescriptionItemsService.checkMedicineAvailability(
+        medicine.id, 
+        newItems[index].quantity || 1
+      )
 
-    if (!isAvailable) {
-      message.warning(`${medicine.name} has insufficient stock`)
+      if (!isAvailable) {
+        message.warning(`${medicine.name} has insufficient stock`)
+      }
+    } catch (error) {
+      console.error('Error checking availability:', error)
+      message.warning('Could not verify stock availability')
     }
 
     newItems[index] = {
@@ -182,10 +222,12 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
       medicine: medicine,
       unitPrice: medicine.unitPrice,
       totalPrice: medicine.unitPrice * (newItems[index].quantity || 1),
-      dosageForm: medicine.dosageForm
+      dosage: `Take as directed with ${medicine.dosageForm}`,
+      frequency: 'As needed'
     }
     
     setItems(newItems)
+    console.log('Updated items:', newItems)
   }
 
   const handleQuantityChange = (value: number | null, index: number) => {
@@ -199,15 +241,18 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
     }
     setItems(newItems)
 
-    // Check availability
-    if (newItems[index].medicine) {
+    // Check availability if medicine is selected
+    if (newItems[index].medicineId && newItems[index].medicineId > 0) {
       prescriptionItemsService.checkMedicineAvailability(
-        newItems[index].medicine!.id,
+        newItems[index].medicineId,
         value
       ).then(isAvailable => {
         if (!isAvailable) {
-          message.warning(`${newItems[index].medicine!.name} has insufficient stock for quantity ${value}`)
+          const medicineName = newItems[index].medicineName || newItems[index].medicine?.name || 'Selected medicine'
+          message.warning(`${medicineName} has insufficient stock for quantity ${value}`)
         }
+      }).catch(error => {
+        console.error('Error checking availability:', error)
       })
     }
   }
@@ -233,11 +278,20 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
     setItems(newItems)
   }
 
-  const handleDosageFormChange = (value: string, index: number) => {
+  const handleDosageChange = (value: string, index: number) => {
     const newItems = [...items]
     newItems[index] = {
       ...newItems[index],
-      dosageForm: value
+      dosage: value
+    }
+    setItems(newItems)
+  }
+
+  const handleFrequencyChange = (value: string, index: number) => {
+    const newItems = [...items]
+    newItems[index] = {
+      ...newItems[index],
+      frequency: value
     }
     setItems(newItems)
   }
@@ -248,38 +302,94 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
       return
     }
 
-    // Validate all items
-    const invalidItems = items.filter((item, index) => {
-      const validation = prescriptionItemsService.validatePrescriptionItem(item)
-      if (!validation.isValid) {
-        message.error(`Item ${index + 1}: ${validation.errors.join(', ')}`)
-        return true
-      }
-      return false
-    })
-
-    if (invalidItems.length > 0) {
+    if (!isEditingAllowed) {
+      message.error('Cannot modify items. Prescription is not in pending status.')
       return
     }
 
     try {
       setLoading(true)
       
-      const itemDTOs: PrescriptionItemDTO[] = items.map(item => ({
-        medicineId: item.medicineId,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        instructions: item.instructions
-      }))
+      // Step 1: Delete items marked for deletion
+      if (itemsToDelete.size > 0) {
+        console.log('Deleting items:', Array.from(itemsToDelete))
+        for (const itemId of itemsToDelete) {
+          try {
+            await prescriptionItemsService.deletePrescriptionItem(itemId)
+            console.log('Deleted item:', itemId)
+          } catch (error) {
+            console.error('Error deleting item:', itemId, error)
+            message.error(`Failed to delete item ID ${itemId}`)
+          }
+        }
+        setItemsToDelete(new Set()) // Clear deletion list
+      }
 
-      const savedItems = await prescriptionItemsService.updatePrescriptionItems(prescriptionId, itemDTOs)
+      // Step 2: Filter out empty items (items with no medicine selected)
+      const validItems = items.filter(item => item.medicineId && item.medicineId > 0)
+      
+      if (validItems.length === 0 && itemsToDelete.size === 0) {
+        message.warning('No valid items to save')
+        return
+      }
+
+      // Step 3: Validate all valid items
+      const invalidItems = validItems.filter((item, index) => {
+        const validation = prescriptionItemsService.validatePrescriptionItem(item)
+        if (!validation.isValid) {
+          message.error(`Item ${index + 1}: ${validation.errors.join(', ')}`)
+          return true
+        }
+        return false
+      })
+
+      if (invalidItems.length > 0) {
+        return
+      }
+
+      // Step 4: Save/Update items (bulk update handles both new and existing items)
+      let savedItems: PrescriptionItem[] = []
+      if (validItems.length > 0) {
+        const itemDTOs: PrescriptionItemDTO[] = validItems.map(item => ({
+          medicineId: item.medicineId,
+          quantity: item.quantity,
+          dosage: item.dosage || '',
+          frequency: item.frequency || '',
+          instructions: item.instructions,
+          unitPrice: item.unitPrice
+        }))
+
+        console.log('Saving prescription items:', itemDTOs)
+        savedItems = await prescriptionItemsService.updatePrescriptionItems(prescriptionId, itemDTOs)
+        console.log('Saved items response:', savedItems)
+      }
+      
+      // Step 5: Update local state
       setItems(savedItems)
       
       const pricing = prescriptionItemsService.calculatePricing(savedItems, taxRate)
-      message.success(`Items saved! Total: $${pricing.total.toFixed(2)}`)
+      
+      // Step 6: Notify parent component
+      if (onItemsChange) {
+        console.log('Notifying parent of saved items:', savedItems.length, 'Total:', pricing.total)
+        onItemsChange(savedItems, pricing.total)
+      }
+      
+      const deletedCount = itemsToDelete.size
+      const actionMessage = deletedCount > 0 
+        ? `Items saved successfully! ${deletedCount} item(s) deleted. Total: $${pricing.total.toFixed(2)}`
+        : `Items saved successfully! Total: $${pricing.total.toFixed(2)}`
+      
+      message.success(actionMessage)
+      
     } catch (error) {
       console.error('Error saving items:', error)
-      message.error('Failed to save prescription items')
+      // Show more detailed error message
+      if (error instanceof Error) {
+        message.error(`Failed to save prescription items: ${error.message}`)
+      } else {
+        message.error('Failed to save prescription items. Please check the console for details.')
+      }
     } finally {
       setLoading(false)
     }
@@ -312,6 +422,18 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
 
   const pricing = prescriptionItemsService.calculatePricing(items, taxRate)
 
+  const getAutocompleteValue = (record: PrescriptionItem) => {
+    // Handle new response format with direct medicine fields
+    if (record.medicineName && record.medicineStrength && record.dosageForm) {
+      return `${record.medicineName} ${record.medicineStrength} (${record.dosageForm})`
+    }
+    // Handle old format with nested medicine object
+    if (!record.medicine) return undefined
+    const formattedName = prescriptionItemsService.formatMedicineName(record.medicine)
+    console.log('Autocomplete value for record:', record, 'formatted name:', formattedName)
+    return formattedName
+  }
+
   const columns = [
     {
       title: 'Medicine',
@@ -324,31 +446,84 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
           options={medicineOptions}
           onSearch={searchMedicines}
           onSelect={(value, option) => handleMedicineSelect(value, option, index)}
-          value={record.medicine ? prescriptionItemsService.formatMedicineName(record.medicine) : ''}
+          onChange={(value) => {
+            // Handle typing in the autocomplete
+            if (!value) {
+              const newItems = [...items]
+              newItems[index] = {
+                ...newItems[index],
+                medicineId: 0,
+                medicineName: undefined,
+                medicineStrength: undefined,
+                dosageForm: undefined,
+                medicine: undefined,
+                unitPrice: 0,
+                totalPrice: 0
+              }
+              setItems(newItems)
+            }
+          }}
+          value={getAutocompleteValue(record)}
           notFoundContent={searchLoading ? <Spin size="small" /> : 'No medicines found'}
-          disabled={!editable}
+          disabled={!isEditingAllowed}
+          allowClear
+          showSearch
+          filterOption={false}
+          onClear={() => {
+            const newItems = [...items]
+            newItems[index] = {
+              ...newItems[index],
+              medicineId: 0,
+              medicineName: undefined,
+              medicineStrength: undefined,
+              dosageForm: undefined,
+              medicine: undefined,
+              unitPrice: 0,
+              totalPrice: 0
+            }
+            setItems(newItems)
+          }}
         />
       )
     },
     {
-      title: 'Form',
-      key: 'dosageForm',
-      width: 120,
+      title: 'Dosage',
+      key: 'dosage',
+      width: 200,
+      render: (_: any, record: PrescriptionItem, index: number) => (
+        <TextArea
+          value={record.dosage}
+          onChange={(e) => handleDosageChange(e.target.value, index)}
+          placeholder="e.g., Take 1 tablet with food"
+          rows={2}
+          disabled={!isEditingAllowed}
+        />
+      )
+    },
+    {
+      title: 'Frequency',
+      key: 'frequency',
+      width: 150,
       render: (_: any, record: PrescriptionItem, index: number) => (
         <Select
-          value={record.dosageForm}
-          onChange={(value) => handleDosageFormChange(value, index)}
+          value={record.frequency}
+          onChange={(value) => handleFrequencyChange(value, index)}
           style={{ width: '100%' }}
-          disabled={!editable}
+          disabled={!isEditingAllowed}
+          placeholder="Select frequency"
         >
-          <Option value="Tablet">Tablet</Option>
-          <Option value="Capsule">Capsule</Option>
-          <Option value="Syrup">Syrup</Option>
-          <Option value="Injection">Injection</Option>
-          <Option value="Cream">Cream</Option>
-          <Option value="Drops">Drops</Option>
-          <Option value="Powder">Powder</Option>
-          <Option value="Ointment">Ointment</Option>
+          <Option value="Once daily">Once daily</Option>
+          <Option value="Twice daily">Twice daily</Option>
+          <Option value="Three times daily">Three times daily</Option>
+          <Option value="Four times daily">Four times daily</Option>
+          <Option value="Every 4 hours">Every 4 hours</Option>
+          <Option value="Every 6 hours">Every 6 hours</Option>
+          <Option value="Every 8 hours">Every 8 hours</Option>
+          <Option value="Every 12 hours">Every 12 hours</Option>
+          <Option value="As needed">As needed</Option>
+          <Option value="Before meals">Before meals</Option>
+          <Option value="After meals">After meals</Option>
+          <Option value="At bedtime">At bedtime</Option>
         </Select>
       )
     },
@@ -362,7 +537,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
           onChange={(value) => handleQuantityChange(value, index)}
           min={1}
           style={{ width: '100%' }}
-          disabled={!editable}
+          disabled={!isEditingAllowed}
         />
       )
     },
@@ -378,7 +553,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
           step={0.01}
           prefix="$"
           style={{ width: '100%' }}
-          disabled={!editable}
+          disabled={!isEditingAllowed}
         />
       )
     },
@@ -397,17 +572,17 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
         <TextArea
           value={record.instructions}
           onChange={(e) => handleInstructionsChange(e.target.value, index)}
-          placeholder="e.g., Take 1 tablet twice daily after meals"
+          placeholder="e.g., Additional instructions for patient"
           rows={2}
-          disabled={!editable}
+          disabled={!isEditingAllowed}
         />
       )
     },
-    ...(editable ? [{
+    ...(isEditingAllowed ? [{
       title: 'Action',
       key: 'action',
       width: 80,
-      render: (_: any, record: PrescriptionItem, index: number) => (
+      render: (_: any, _record: PrescriptionItem, index: number) => (
         <Popconfirm
           title="Remove this item?"
           onConfirm={() => handleRemoveItem(index)}
@@ -427,7 +602,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
           <Tag color="blue">{items.length} items</Tag>
         </Space>
       ) : null}
-      extra={editable ? (
+      extra={isEditingAllowed ? (
         <Space>
           <Button 
             icon={<WarningOutlined />}
@@ -444,10 +619,15 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
             Save Items
           </Button>
         </Space>
-      ) : null}
+      ) : (
+        <Tag color={prescriptionStatus === 'PENDING' ? 'orange' : 'blue'}>
+          {prescriptionStatus === 'PENDING' ? 'Pending Review' : prescriptionStatus}
+        </Tag>
+      )}
     >
+
       {/* Filter Section */}
-      {editable && (
+      {isEditingAllowed && (
         <Row gutter={16} style={{ marginBottom: '16px' }}>
           <Col span={8}>
             <Select
@@ -488,7 +668,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
         scroll={{ x: 1000 }}
         loading={loading}
         rowKey={(record, index) => `item-${index}-${record.medicineId}`}
-        footer={editable ? () => (
+        footer={isEditingAllowed ? () => (
           <Button
             type="dashed"
             onClick={handleAddItem}
@@ -501,25 +681,25 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
         summary={() => (
           <Table.Summary>
             <Table.Summary.Row>
-              <Table.Summary.Cell index={0} colSpan={editable ? 4 : 3}>
+              <Table.Summary.Cell index={0} colSpan={isEditingAllowed ? 4 : 3}>
                 <Text strong>Subtotal:</Text>
               </Table.Summary.Cell>
               <Table.Summary.Cell index={1} align="right">
                 <Text strong>${pricing.subtotal.toFixed(2)}</Text>
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={2} colSpan={editable ? 2 : 1}></Table.Summary.Cell>
+              <Table.Summary.Cell index={2} colSpan={isEditingAllowed ? 2 : 1}></Table.Summary.Cell>
             </Table.Summary.Row>
             <Table.Summary.Row>
-              <Table.Summary.Cell index={0} colSpan={editable ? 4 : 3}>
+              <Table.Summary.Cell index={0} colSpan={isEditingAllowed ? 4 : 3}>
                 <Text strong>Tax ({(taxRate * 100).toFixed(0)}%):</Text>
               </Table.Summary.Cell>
               <Table.Summary.Cell index={1} align="right">
                 <Text strong>${pricing.tax.toFixed(2)}</Text>
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={2} colSpan={editable ? 2 : 1}></Table.Summary.Cell>
+              <Table.Summary.Cell index={2} colSpan={isEditingAllowed ? 2 : 1}></Table.Summary.Cell>
             </Table.Summary.Row>
             <Table.Summary.Row>
-              <Table.Summary.Cell index={0} colSpan={editable ? 4 : 3}>
+              <Table.Summary.Cell index={0} colSpan={isEditingAllowed ? 4 : 3}>
                 <Text strong style={{ fontSize: '16px' }}>Total:</Text>
               </Table.Summary.Cell>
               <Table.Summary.Cell index={1} align="right">
@@ -527,7 +707,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
                   ${pricing.total.toFixed(2)}
                 </Text>
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={2} colSpan={editable ? 2 : 1}></Table.Summary.Cell>
+              <Table.Summary.Cell index={2} colSpan={isEditingAllowed ? 2 : 1}></Table.Summary.Cell>
             </Table.Summary.Row>
           </Table.Summary>
         )}
@@ -563,7 +743,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
       </Row>
 
       {/* Instructions */}
-      {items.length === 0 && editable && (
+      {items.length === 0 && isEditingAllowed && (
         <Alert
           message="No prescription items added"
           description={

@@ -23,19 +23,26 @@ export interface Medicine {
 export interface PrescriptionItem {
   id?: number
   medicineId: number
-  medicine?: Medicine
+  medicineName?: string
+  medicineStrength?: string
+  dosageForm?: string
+  medicine?: Medicine  // Keep for backward compatibility
   quantity: number
+  dosage?: string // e.g., "Take 1 tablet twice daily after meals"
+  frequency?: string // e.g., "Twice daily", "As needed"
+  instructions: string // Additional instructions
   unitPrice: number
   totalPrice: number
-  instructions: string
-  dosageForm?: string
+  isDispensed?: boolean
 }
 
 export interface PrescriptionItemDTO {
   medicineId: number
   quantity: number
-  unitPrice: number
+  dosage?: string
+  frequency?: string
   instructions: string
+  unitPrice: number
 }
 
 export interface PrescriptionItemsManager {
@@ -247,7 +254,8 @@ class PrescriptionItemsService {
       unitPrice: medicine.unitPrice,
       totalPrice: medicine.unitPrice * quantity,
       instructions: instructions,
-      dosageForm: medicine.dosageForm
+      dosage: `Take as directed with ${medicine.dosageForm}`,
+      frequency: 'As needed'
     }
   }
 
@@ -267,7 +275,7 @@ class PrescriptionItemsService {
   validatePrescriptionItem(item: PrescriptionItem): { isValid: boolean; errors: string[] } {
     const errors: string[] = []
 
-    if (!item.medicineId) {
+    if (!item.medicineId || item.medicineId <= 0) {
       errors.push('Medicine is required')
     }
 
@@ -277,10 +285,6 @@ class PrescriptionItemsService {
 
     if (!item.unitPrice || item.unitPrice <= 0) {
       errors.push('Unit price must be greater than 0')
-    }
-
-    if (!item.instructions?.trim()) {
-      errors.push('Instructions are required')
     }
 
     return {

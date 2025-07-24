@@ -6,6 +6,38 @@
 
 import { api } from '../config/index'
 
+// Ready for Pickup DTO interface
+export interface ReadyForPickupPrescriptionDTO {
+  id: number
+  prescriptionNumber: string
+  customerName: string
+  customerPhone?: string
+  customerEmail: string
+  doctorName?: string
+  createdAt: number[]
+  approvedAt?: number[]
+  status: string
+  
+  // Bill information (flattened)
+  billId?: number
+  billNumber?: string
+  totalAmount?: number
+  paymentStatus?: string
+  paymentType?: string
+  
+  // Medicine items (simplified)
+  items?: PrescriptionItemDTO[]
+}
+
+export interface PrescriptionItemDTO {
+  medicineName: string
+  quantity: number
+  unitPrice: number
+  totalPrice: number
+  dosage?: string
+  instructions?: string
+}
+
 // Backend API response interfaces
 export interface PrescriptionApiResponse {
   id: number
@@ -26,6 +58,22 @@ export interface PrescriptionApiResponse {
   customerName: string
   pharmacistId?: number
   pharmacistName?: string
+  prescriptionItems?: PrescriptionItemApiResponse[]
+}
+
+export interface PrescriptionItemApiResponse {
+  id: number
+  medicineId: number
+  medicineName: string
+  medicineStrength: string
+  dosageForm: string
+  quantity: number
+  dosage: string
+  frequency: string
+  instructions: string
+  unitPrice: number
+  totalPrice: number
+  dispensed: boolean
 }
 
 export interface PaginatedPrescriptionResponse {
@@ -206,7 +254,24 @@ const transformPrescriptionData = (apiData: PrescriptionApiResponse): any => {
       age: 'N/A',
       gender: 'N/A'
     },
-    medications: [], // This would need to come from a separate API call if needed
+    prescriptionItems: (apiData.prescriptionItems || []).map((item: any) => ({
+      id: item.id,
+      medicineId: item.medicineId,
+      medicine: {
+        id: item.medicineId,
+        name: item.medicineName,
+        strength: item.medicineStrength,
+        dosageForm: item.dosageForm,
+        unitPrice: item.unitPrice
+      },
+      quantity: item.quantity,
+      dosage: item.dosage,
+      frequency: item.frequency,
+      instructions: item.instructions,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
+      isDispensed: item.dispensed
+    })), // Transform prescription items from API
     customerInputs: {
       patientNotes: apiData.notes,
       emergencyRequest: apiData.notes?.toLowerCase().includes('emergency') || false,
@@ -218,7 +283,7 @@ const transformPrescriptionData = (apiData: PrescriptionApiResponse): any => {
 }
 
 // Transform bill API response to expected UI format
-const transformBillData = (apiData: BillApiResponse): TransformedBill => {
+const transformBillData = (apiData: any): TransformedBill => {
   // Map payment status to UI status
   const getUIStatus = (paymentStatus: string, paymentType: string) => {
     if (paymentStatus === 'PENDING') {
@@ -227,37 +292,104 @@ const transformBillData = (apiData: BillApiResponse): TransformedBill => {
     return paymentStatus === 'PAID' ? 'Paid' : 'Pending Billing'
   }
 
+  // Extract customer info safely - handle the new format where we get customerId and customerName directly
+  const getCustomerInfo = (apiData: any) => {
+    // If we have customerName directly in the response (new format)
+    if (apiData.customerName) {
+      return {
+        name: apiData.customerName,
+        email: '', // Email not provided in new format
+        phone: '' // Phone not provided in new format
+      }
+    }
+    
+    // Fallback for old format
+    const customer = apiData.customer
+    if (!customer) return { name: 'Unknown', email: '', phone: '' }
+    
+    if (typeof customer === 'string') {
+      return { name: customer, email: '', phone: '' }
+    }
+    
+    if (customer.firstName && customer.lastName) {
+      return {
+        name: `${customer.firstName} ${customer.lastName}`,
+        email: customer.email || '',
+        phone: customer.phone || ''
+      }
+    }
+    
+    return {
+      name: customer.username || customer.name || 'Unknown',
+      email: customer.email || '',
+      phone: customer.phone || ''
+    }
+  }
+
+  // Extract pharmacist info safely
+  const getPharmacistInfo = (pharmacist: any) => {
+    if (!pharmacist) return 'Unknown'
+    
+    if (typeof pharmacist === 'string') {
+      return pharmacist
+    }
+    
+    if (pharmacist.firstName && pharmacist.lastName) {
+      return `${pharmacist.firstName} ${pharmacist.lastName}`
+    }
+    
+    return pharmacist.username || pharmacist.name || 'Unknown'
+  }
+
+  // Convert date safely
+  const convertDate = (dateValue: any): string => {
+    if (!dateValue) return new Date().toISOString()
+    
+    if (Array.isArray(dateValue)) {
+      return convertDateArrayToString(dateValue)
+    }
+    
+    if (typeof dateValue === 'string') {
+      return new Date(dateValue).toISOString()
+    }
+    
+    return new Date(dateValue).toISOString()
+  }
+
+  const customerInfo = getCustomerInfo(apiData)
+  const pharmacistName = getPharmacistInfo(apiData.pharmacist)
+
   return {
     id: apiData.id,
     billNumber: apiData.billNumber,
     orderId: apiData.billNumber, // Use bill number as order ID
-    customerName: `${apiData.customer.firstName} ${apiData.customer.lastName}`,
-    customerEmail: apiData.customer.email,
-    customerPhone: apiData.customer.phone,
-    pharmacistName: `${apiData.pharmacist.firstName} ${apiData.pharmacist.lastName}`,
-    subtotal: apiData.subtotal,
-    discount: apiData.discount,
-    tax: apiData.tax,
-    total: apiData.totalAmount,
-    totalAmount: apiData.totalAmount,
-    amount: apiData.totalAmount, // Alias for compatibility
+    customerName: customerInfo.name,
+    customerEmail: customerInfo.email,
+    customerPhone: customerInfo.phone,
+    pharmacistName: pharmacistName,
+    subtotal: Number(apiData.subtotal) || 0,
+    discount: Number(apiData.discount) || 0,
+    tax: Number(apiData.tax) || 0,
+    total: Number(apiData.totalAmount) || 0,
+    totalAmount: Number(apiData.totalAmount) || 0,
+    amount: Number(apiData.totalAmount) || 0, // Alias for compatibility
     shipping: 0, // Default shipping to 0 if not provided
-    paymentStatus: apiData.paymentStatus,
+    paymentStatus: apiData.paymentStatus || 'PENDING',
     paymentMethod: apiData.paymentMethod,
-    paymentType: apiData.paymentType,
-    status: getUIStatus(apiData.paymentStatus, apiData.paymentType),
+    paymentType: apiData.paymentType || 'PAY_ON_PICKUP',
+    status: getUIStatus(apiData.paymentStatus || 'PENDING', apiData.paymentType || 'PAY_ON_PICKUP'),
     notes: apiData.notes,
-    createdAt: convertDateArrayToString(apiData.createdAt),
-    updatedAt: convertDateArrayToString(apiData.updatedAt),
-    paidAt: apiData.paidAt ? convertDateArrayToString(apiData.paidAt) : undefined,
-    orderDate: convertDateArrayToString(apiData.createdAt),
+    createdAt: convertDate(apiData.createdAt),
+    updatedAt: convertDate(apiData.updatedAt),
+    paidAt: apiData.paidAt ? convertDate(apiData.paidAt) : undefined,
+    orderDate: convertDate(apiData.createdAt),
     billItems: apiData.billItems || [],
     items: apiData.billItems || [], // Alias for compatibility
-    prescriptionId: apiData.prescription?.id,
-    prescriptionNumber: apiData.prescription?.prescriptionNumber,
+    prescriptionId: apiData.prescriptionId, // Direct from API response
+    prescriptionNumber: apiData.prescriptionNumber, // Direct from API response
     invoiceId: apiData.billNumber, // Use bill number as invoice ID
-    generatedDate: convertDateArrayToString(apiData.createdAt),
-    paidAmount: apiData.paymentStatus === 'PAID' ? apiData.totalAmount : 0,
+    generatedDate: convertDate(apiData.createdAt),
+    paidAmount: apiData.paymentStatus === 'PAID' ? Number(apiData.totalAmount) || 0 : 0,
     // Mock insurance data if not provided
     insurance: undefined // Insurance data would need to come from prescription or separate API
   }
@@ -393,6 +525,35 @@ class PharmacistService {
     } catch (error) {
       console.error('Error marking prescription ready:', error)
       throw new Error('Failed to mark prescription as ready')
+    }
+  }
+
+  /**
+   * Collect payment for a prescription when customer arrives for pickup
+   */
+  async collectPayment(prescriptionId: string, paymentData: {
+    paymentMethod: string;
+    notes?: string;
+  }): Promise<any> {
+    try {
+      const response = await api.post(`/pharmacist/prescriptions/${prescriptionId}/collect-payment`, paymentData)
+      return response.data
+    } catch (error) {
+      console.error('Error collecting payment:', error)
+      throw new Error('Failed to collect payment')
+    }
+  }
+
+  /**
+   * Get prescriptions ready for pickup (awaiting payment collection)
+   */
+  async getPrescriptionsReadyForPickup(): Promise<ReadyForPickupPrescriptionDTO[]> {
+    try {
+      const response = await api.get('/pharmacist/prescriptions/ready-for-pickup')
+      return response.data
+    } catch (error) {
+      console.error('Error fetching prescriptions ready for pickup:', error)
+      throw new Error('Failed to fetch prescriptions ready for pickup')
     }
   }
 
@@ -575,12 +736,39 @@ class PharmacistService {
   async getPendingBills(): Promise<TransformedBill[]> {
     try {
       const response = await api.get('/bills/pending')
-      const apiData: BillApiResponse[] = response.data
+      console.log('Pending bills API response:', response.data)
+      
+      // Handle different response formats
+      let apiData: any[]
+      
+      if (Array.isArray(response.data)) {
+        apiData = response.data
+      } else if (response.data?.content && Array.isArray(response.data.content)) {
+        // Handle paginated response
+        apiData = response.data.content
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        // Handle wrapped response
+        apiData = response.data.data
+      } else {
+        console.warn('Unexpected API response format:', response.data)
+        return []
+      }
+      
+      // Handle empty array or no data
+      if (!apiData || apiData.length === 0) {
+        console.log('No pending bills found')
+        return []
+      }
       
       // Transform the bill data
       return apiData.map(bill => transformBillData(bill))
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching pending bills:', error)
+      // Check if it's a 404 or empty result
+      if (error.response?.status === 404) {
+        console.log('No pending bills endpoint found or no bills available')
+        return []
+      }
       throw new Error('Failed to fetch pending bills')
     }
   }
@@ -591,12 +779,39 @@ class PharmacistService {
   async getPaidBills(): Promise<TransformedBill[]> {
     try {
       const response = await api.get('/bills/paid')
-      const apiData: BillApiResponse[] = response.data
+      console.log('Paid bills API response:', response.data)
+      
+      // Handle different response formats
+      let apiData: any[]
+      
+      if (Array.isArray(response.data)) {
+        apiData = response.data
+      } else if (response.data?.content && Array.isArray(response.data.content)) {
+        // Handle paginated response
+        apiData = response.data.content
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        // Handle wrapped response
+        apiData = response.data.data
+      } else {
+        console.warn('Unexpected API response format:', response.data)
+        return []
+      }
+      
+      // Handle empty array or no data
+      if (!apiData || apiData.length === 0) {
+        console.log('No paid bills found')
+        return []
+      }
       
       // Transform the bill data
       return apiData.map(bill => transformBillData(bill))
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching paid bills:', error)
+      // Check if it's a 404 or empty result
+      if (error.response?.status === 404) {
+        console.log('No paid bills endpoint found or no bills available')
+        return []
+      }
       throw new Error('Failed to fetch paid bills')
     }
   }
