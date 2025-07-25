@@ -7,7 +7,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { User, UserRole, LoginRequest, LoginResponse } from '@types/index'
+import { User, UserRole, LoginRequest, LoginResponse, RegisterRequest } from '@/types'
 import { authService } from '@services/authService'
 
 // ============================================================================
@@ -24,6 +24,7 @@ interface AuthState {
 
   // Actions
   login: (credentials: LoginRequest) => Promise<void>
+  register: (userData: RegisterRequest) => Promise<void>
   logout: () => void
   clearError: () => void
   setLoading: (loading: boolean) => void
@@ -94,6 +95,27 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: false,
             isLoading: false,
             error: error?.response?.data?.message ?? 'Login failed. Please try again.',
+          })
+          throw error
+        }
+      },
+
+      // Register action
+      register: async (userData: RegisterRequest) => {
+        try {
+          set({ isLoading: true, error: null })
+
+          await authService.register(userData)
+          
+          set({
+            isLoading: false,
+            error: null,
+          })
+
+        } catch (error: any) {
+          set({
+            isLoading: false,
+            error: error?.response?.data?.message ?? 'Registration failed. Please try again.',
           })
           throw error
         }
@@ -251,7 +273,7 @@ export const useHasPermission = (permission: string) => {
   if (!user) return false
   
   const rolePermissions = ROLE_PERMISSIONS[user.role] || []
-  return rolePermissions.includes(permission as any)
+  return (rolePermissions as readonly string[]).includes(permission)
 }
 
 // ============================================================================

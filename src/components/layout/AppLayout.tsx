@@ -38,10 +38,10 @@ import {
   WarningOutlined,
   AlertOutlined,
   BoxPlotOutlined,
-  ShopOutlined,
   DatabaseOutlined
 } from '@ant-design/icons'
 import { useAuthStore, useUserRole } from '@store/authStore'
+import { useNotificationToasts } from '../notifications/NotificationToasts'
 
 const { Header, Sider, Content } = Layout
 const { Title } = Typography
@@ -57,6 +57,25 @@ const AppLayout: React.FC = () => {
   const userRole = useUserRole()
   const [collapsed, setCollapsed] = useState(false)
   const [openKeys, setOpenKeys] = useState<string[]>([])
+  const [notificationCount, setNotificationCount] = useState(0)
+  const { showNotifications } = useNotificationToasts(notificationCount, setNotificationCount)
+
+  // Initialize notification count based on user role
+  useEffect(() => {
+    switch (userRole) {
+      case 'ADMIN': 
+        setNotificationCount(13)
+        break
+      case 'PHARMACIST': 
+        setNotificationCount(8)
+        break
+      case 'CUSTOMER': 
+        setNotificationCount(3)
+        break
+      default: 
+        setNotificationCount(0)
+    }
+  }, [userRole])
 
   // Update openKeys when location changes
   useEffect(() => {
@@ -132,18 +151,12 @@ const AppLayout: React.FC = () => {
 
   // Calculate notification count based on user role
   const getNotificationCount = () => {
-    switch (userRole) {
-      case 'ADMIN': return 13
-      case 'PHARMACIST': return 8
-      case 'CUSTOMER': return 3
-      default: return 0
-    }
+    return notificationCount
   }
 
   // Handle notification click
   const handleNotificationClick = () => {
-    // Future enhancement: Open notification drawer/modal
-    console.log('Notifications clicked for', userRole)
+    showNotifications()
   }
 
   // Handle user logout
@@ -187,6 +200,12 @@ const AppLayout: React.FC = () => {
                   </Space>
                 ),
                 onClick: () => navigate('/admin/users'),
+              },
+              {
+                key: '/admin/notifications',
+                icon: <BellOutlined />,
+                label: 'Notification Management',
+                onClick: () => navigate('/admin/notifications'),
               },
             ],
           },

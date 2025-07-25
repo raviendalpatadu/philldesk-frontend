@@ -9,7 +9,8 @@ import {
   Row,
   Col,
   Divider,
-  Space
+  Space,
+  Modal
 } from 'antd';
 import {
   UserOutlined,
@@ -17,19 +18,30 @@ import {
   PhoneOutlined,
   EditOutlined,
   SaveOutlined,
-  CloseOutlined
+  CloseOutlined,
+  LockOutlined,
+  EyeInvisibleOutlined,
+  EyeTwoTone
 } from '@ant-design/icons';
 import customerService, { CustomerProfile } from '../../services/customerService';
 
 const { Title } = Typography;
 const { TextArea } = Input;
 
+// Reusable icon renderer for password inputs
+const passwordIconRender = (visible: boolean) => (
+  visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+);
+
 const CustomerProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [form] = Form.useForm();
+  const [passwordForm] = Form.useForm();
 
   useEffect(() => {
     fetchProfile();
@@ -72,6 +84,23 @@ const CustomerProfilePage: React.FC = () => {
       console.error('Error:', error);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePasswordChange = async (_values: any) => {
+    try {
+      setChangingPassword(true);
+      // Note: This would require implementing a password change endpoint for customers
+      // For now, we'll show a message that this feature is coming soon
+      message.info('Password change feature is coming soon for customer accounts');
+      setPasswordModalVisible(false);
+      passwordForm.resetFields();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Failed to change password';
+      message.error(errorMessage);
+      console.error('Error:', error);
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -257,7 +286,11 @@ const CustomerProfilePage: React.FC = () => {
               <p style={{ color: '#666', marginBottom: '16px' }}>
                 Keep your account secure by managing your password and security settings.
               </p>
-              <Button block>
+              <Button 
+                block 
+                icon={<LockOutlined />}
+                onClick={() => setPasswordModalVisible(true)}
+              >
                 Change Password
               </Button>
             </div>
@@ -275,6 +308,92 @@ const CustomerProfilePage: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      {/* Password Change Modal */}
+      <Modal
+        title="Change Password"
+        open={passwordModalVisible}
+        onCancel={() => {
+          setPasswordModalVisible(false);
+          passwordForm.resetFields();
+        }}
+        footer={null}
+      >
+        <Form
+          form={passwordForm}
+          layout="vertical"
+          onFinish={handlePasswordChange}
+        >
+          <Form.Item
+            name="oldPassword"
+            label="Current Password"
+            rules={[{ required: true, message: 'Please enter your current password' }]}
+          >
+            <Input.Password
+              prefix={<LockOutlined />}
+              placeholder="Enter your current password"
+              iconRender={passwordIconRender}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="newPassword"
+            label="New Password"
+            rules={[
+              { required: true, message: 'Please enter your new password' },
+              { min: 6, message: 'Password must be at least 6 characters' }
+            ]}
+          >
+            <Input.Password
+              prefix={<LockOutlined />}
+              placeholder="Enter your new password"
+              iconRender={passwordIconRender}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="confirmPassword"
+            label="Confirm New Password"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: 'Please confirm your new password' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('newPassword') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Passwords do not match'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password
+              prefix={<LockOutlined />}
+              placeholder="Confirm your new password"
+              iconRender={passwordIconRender}
+            />
+          </Form.Item>
+
+          <Form.Item style={{ marginBottom: 0, marginTop: '24px' }}>
+            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+              <Button onClick={() => {
+                setPasswordModalVisible(false);
+                passwordForm.resetFields();
+              }}>
+                Cancel
+              </Button>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                loading={changingPassword}
+                icon={<SaveOutlined />}
+              >
+                Change Password
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

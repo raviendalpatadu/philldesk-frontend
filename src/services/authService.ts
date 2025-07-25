@@ -115,9 +115,9 @@ class AuthService {
   /**
    * Register new user
    */
-  async register(userData: RegisterRequest): Promise<User> {
+  async register(userData: RegisterRequest): Promise<any> {
     try {
-      const response: AxiosResponse<User> = await apiClient.post('/auth/register', userData)
+      const response: AxiosResponse<any> = await apiClient.post('/auth/signup', userData)
       return response.data
     } catch (error: any) {
       console.error('Registration error:', error)

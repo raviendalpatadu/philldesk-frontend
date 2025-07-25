@@ -5,64 +5,140 @@
  * for pharmacy operations, sales, and user activity.
  */
 
-import React from 'react'
-import { 
-  Typography, 
-  Card, 
-  Row, 
+import React, { useState, useEffect } from 'react'
+import {
+  Typography,
+  Card,
+  Row,
   Col,
   Statistic,
   Progress,
   Table,
   Select,
-  DatePicker
+  DatePicker,
+  message,
+  Spin,
+  Alert,
+  Button
 } from 'antd'
-import { 
+import {
   RiseOutlined,
   UserOutlined,
   ShoppingCartOutlined,
   FileTextOutlined,
   TeamOutlined,
-  WarningOutlined
+  WarningOutlined,
+  LoadingOutlined,
+  ReloadOutlined
 } from '@ant-design/icons'
+import { 
+  analyticsService, 
+  DashboardStats, 
+  InventoryStats, 
+  TopMedication, 
+  SystemAlerts 
+} from '../../services/analyticsService'
+import dayjs from 'dayjs'
 
 const { Title } = Typography
 const { Option } = Select
 const { RangePicker } = DatePicker
 
-const AnalyticsDashboard: React.FC = () => {
-  // Mock data for top medications
-  const topMedications = [
-    {
-      key: '1',
-      name: 'Paracetamol 500mg',
-      sales: 245,
-      revenue: '$1,225.00',
-      trend: '+12%'
-    },
-    {
-      key: '2',
-      name: 'Amoxicillin 250mg',
-      sales: 189,
-      revenue: '$945.00',
-      trend: '+8%'
-    },
-    {
-      key: '3',
-      name: 'Insulin Pen',
-      sales: 87,
-      revenue: '$2,175.00',
-      trend: '+15%'
-    },
-    {
-      key: '4',
-      name: 'Lisinopril 10mg',
-      sales: 156,
-      revenue: '$780.00',
-      trend: '+5%'
-    }
-  ]
+interface AnalyticsData {
+  dashboardStats: DashboardStats | null
+  inventoryStats: InventoryStats | null
+  topMedications: TopMedication[]
+  systemAlerts: SystemAlerts | null
+  userDistribution: { 
+    customers: number
+    pharmacists: number
+    activeUsersPercentage: number 
+  } | null
+  inventoryStatus: { 
+    inStock: number
+    lowStock: number
+    outOfStock: number 
+  } | null
+}
 
+const AnalyticsDashboard: React.FC = () => {
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
+    dashboardStats: null,
+    inventoryStats: null,
+    topMedications: [],
+    systemAlerts: null,
+    userDistribution: null,
+    inventoryStatus: null
+  })
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
+    dayjs().subtract(30, 'days'),
+    dayjs()
+  ])
+  const [refreshing, setRefreshing] = useState<boolean>(false)
+
+  // Data fetching functions
+  const fetchAnalyticsData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      // Fetch all analytics data in parallel
+      const [
+        dashboardStats,
+        inventoryStats,
+        topMedications,
+        systemAlerts,
+        userDistribution,
+        inventoryStatus
+      ] = await Promise.all([
+        analyticsService.getDashboardStats(),
+        analyticsService.getInventoryStats(),
+        analyticsService.getTopMedications(),
+        analyticsService.getSystemAlerts(),
+        analyticsService.getUserDistribution(),
+        analyticsService.getInventoryStatus()
+      ])
+
+      setAnalyticsData({
+        dashboardStats,
+        inventoryStats,
+        topMedications,
+        systemAlerts,
+        userDistribution,
+        inventoryStatus
+      })
+    } catch (err: any) {
+      console.error('Error fetching analytics data:', err)
+      setError(err.message || 'Failed to fetch analytics data')
+      message.error('Failed to load analytics data. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await fetchAnalyticsData()
+    setRefreshing(false)
+    message.success('Analytics data refreshed successfully')
+  }
+
+  const handleDateRangeChange = (dates: any) => {
+    if (dates) {
+      setDateRange([dates[0], dates[1]])
+      // You can trigger a refresh with new date range here
+      // fetchAnalyticsData() - if needed for revenue stats
+    }
+  }
+
+  // Load data on component mount
+  useEffect(() => {
+    fetchAnalyticsData()
+  }, [])
+
+  // Table columns configuration
   const medicationColumns = [
     {
       title: 'Medication',
@@ -91,9 +167,64 @@ const AnalyticsDashboard: React.FC = () => {
     }
   ]
 
+  // Show loading spinner
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '400px' 
+      }}>
+        <Spin 
+          size="large" 
+          indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} 
+        />
+        <span style={{ marginLeft: 16 }}>Loading analytics data...</span>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div style={{ padding: 24 }}>
+        <Alert
+          message="Error Loading Analytics"
+          description={error}
+          type="error"
+          showIcon
+          action={
+            <Button onClick={handleRefresh} icon={<ReloadOutlined />}>
+              Retry
+            </Button>
+          }
+        />
+      </div>
+    )
+  }
+
+  // Calculate revenue trend (mock calculation for now)
+  const calculateRevenueTrend = () => {
+    if (analyticsData.inventoryStats?.totalValue) {
+      return '+12%' // Mock trend
+    }
+    return '+0%'
+  }
+
+  // Get revenue value
+  const getTotalRevenue = () => {
+    return analyticsData.inventoryStats?.totalValue || 0
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: 24 
+      }}>
         <Title level={2}>Analytics Dashboard</Title>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <Select defaultValue="thisMonth" style={{ width: 150 }}>
@@ -102,24 +233,35 @@ const AnalyticsDashboard: React.FC = () => {
             <Option value="thisMonth">This Month</Option>
             <Option value="thisYear">This Year</Option>
           </Select>
-          <RangePicker />
+          <RangePicker 
+            value={dateRange}
+            onChange={handleDateRangeChange}
+            style={{ width: 250 }}
+          />
+          <Button 
+            onClick={handleRefresh}
+            loading={refreshing}
+            icon={<ReloadOutlined />}
+          >
+            Refresh
+          </Button>
         </div>
       </div>
-      
+
       {/* Key Performance Indicators */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={6}>
           <Card>
             <Statistic
               title="Total Revenue"
-              value={58420}
+              value={getTotalRevenue()}
               precision={2}
               prefix="$"
               suffix={<RiseOutlined style={{ color: '#52c41a' }} />}
               valueStyle={{ color: '#52c41a' }}
             />
             <div style={{ marginTop: 8, fontSize: '12px', color: '#999' }}>
-              +12% from last month
+              {calculateRevenueTrend()} from last month
             </div>
           </Card>
         </Col>
@@ -127,7 +269,7 @@ const AnalyticsDashboard: React.FC = () => {
           <Card>
             <Statistic
               title="Total Orders"
-              value={1248}
+              value={analyticsData.dashboardStats?.paidBills || 0}
               prefix={<ShoppingCartOutlined />}
               valueStyle={{ color: '#1890ff' }}
             />
@@ -140,7 +282,7 @@ const AnalyticsDashboard: React.FC = () => {
           <Card>
             <Statistic
               title="Active Users"
-              value={342}
+              value={analyticsData.dashboardStats?.activeUsers || 0}
               prefix={<UserOutlined />}
               valueStyle={{ color: '#722ed1' }}
             />
@@ -153,7 +295,7 @@ const AnalyticsDashboard: React.FC = () => {
           <Card>
             <Statistic
               title="Prescriptions Processed"
-              value={956}
+              value={analyticsData.dashboardStats?.completedPrescriptions || 0}
               prefix={<FileTextOutlined />}
               valueStyle={{ color: '#fa8c16' }}
             />
@@ -169,25 +311,46 @@ const AnalyticsDashboard: React.FC = () => {
         <Col span={8}>
           <Card title="Inventory Status" extra="View Details">
             <div style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                marginBottom: 8 
+              }}>
                 <span>In Stock</span>
-                <span>78%</span>
+                <span>{analyticsData.inventoryStatus?.inStock || 0}%</span>
               </div>
-              <Progress percent={78} status="active" />
+              <Progress 
+                percent={analyticsData.inventoryStatus?.inStock || 0} 
+                status="active" 
+              />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                marginBottom: 8 
+              }}>
                 <span>Low Stock</span>
-                <span>15%</span>
+                <span>{analyticsData.inventoryStatus?.lowStock || 0}%</span>
               </div>
-              <Progress percent={15} status="exception" />
+              <Progress 
+                percent={analyticsData.inventoryStatus?.lowStock || 0} 
+                status="exception" 
+              />
             </div>
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                marginBottom: 8 
+              }}>
                 <span>Out of Stock</span>
-                <span>7%</span>
+                <span>{analyticsData.inventoryStatus?.outOfStock || 0}%</span>
               </div>
-              <Progress percent={7} status="exception" />
+              <Progress 
+                percent={analyticsData.inventoryStatus?.outOfStock || 0} 
+                status="exception" 
+              />
             </div>
           </Card>
         </Col>
@@ -197,7 +360,7 @@ const AnalyticsDashboard: React.FC = () => {
               <Col span={12}>
                 <Statistic
                   title="Customers"
-                  value={280}
+                  value={analyticsData.userDistribution?.customers || 0}
                   prefix={<UserOutlined />}
                   valueStyle={{ fontSize: '20px' }}
                 />
@@ -205,31 +368,44 @@ const AnalyticsDashboard: React.FC = () => {
               <Col span={12}>
                 <Statistic
                   title="Pharmacists"
-                  value={12}
+                  value={analyticsData.userDistribution?.pharmacists || 0}
                   prefix={<TeamOutlined />}
                   valueStyle={{ fontSize: '20px' }}
                 />
               </Col>
             </Row>
             <div style={{ marginTop: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                marginBottom: 8 
+              }}>
                 <span>Active Users (24h)</span>
-                <span>89%</span>
+                <span>{analyticsData.userDistribution?.activeUsersPercentage || 0}%</span>
               </div>
-              <Progress percent={89} />
+              <Progress 
+                percent={analyticsData.userDistribution?.activeUsersPercentage || 0} 
+              />
             </div>
           </Card>
         </Col>
         <Col span={8}>
-          <Card title="System Alerts" extra={<WarningOutlined style={{ color: '#fa8c16' }} />}>
+          <Card 
+            title="System Alerts" 
+            extra={<WarningOutlined style={{ color: '#fa8c16' }} />}
+          >
             <div style={{ marginBottom: 12 }}>
-              <span style={{ color: '#fa8c16' }}>• 5 medications low in stock</span>
+              <span style={{ color: '#fa8c16' }}>
+                • {analyticsData.systemAlerts?.lowStockMedicines?.length || 0} medications low in stock
+              </span>
             </div>
             <div style={{ marginBottom: 12 }}>
               <span style={{ color: '#ff4d4f' }}>• 2 expired medications</span>
             </div>
             <div style={{ marginBottom: 12 }}>
-              <span style={{ color: '#1890ff' }}>• 8 pending prescriptions</span>
+              <span style={{ color: '#1890ff' }}>
+                • {analyticsData.systemAlerts?.pendingPrescriptions?.length || 0} pending prescriptions
+              </span>
             </div>
             <div>
               <span style={{ color: '#52c41a' }}>• System backup completed</span>
@@ -241,10 +417,11 @@ const AnalyticsDashboard: React.FC = () => {
       {/* Top Medications Table */}
       <Card title="Top Selling Medications" style={{ marginBottom: 24 }}>
         <Table 
-          columns={medicationColumns} 
-          dataSource={topMedications}
+          columns={medicationColumns}
+          dataSource={analyticsData.topMedications}
           pagination={false}
           size="small"
+          loading={refreshing}
         />
       </Card>
     </div>

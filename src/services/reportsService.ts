@@ -396,6 +396,108 @@ const reportsService = {
     } else {
       return `${minutes}m`
     }
+  },
+
+  // PDF Generation Methods
+  
+  /**
+   * Download PDF report with all data
+   */
+  async downloadPdfReport(reportData: {
+    title: string
+    startDate: string
+    endDate: string
+    summaryStats: any
+    salesData: SalesReportData[]
+    inventoryData: InventoryReportData[]
+    userActivityData: UserActivityData[]
+  }): Promise<Blob> {
+    try {
+      console.log('Downloading PDF report...')
+      const response = await api.post('/reports/download/pdf', reportData, {
+        responseType: 'blob',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/pdf'
+        }
+      })
+      
+      return response.data
+    } catch (error) {
+      console.error('Error downloading PDF report:', error)
+      throw new Error('Failed to download PDF report')
+    }
+  },
+
+  /**
+   * Download sales report PDF
+   */
+  async downloadSalesReportPdf(startDate: string, endDate: string, salesData: SalesReportData[], summaryStats: any): Promise<Blob> {
+    try {
+      console.log('Downloading sales report PDF...')
+      const response = await api.post(`/reports/sales/pdf?startDate=${startDate}&endDate=${endDate}`, {
+        salesData,
+        summaryStats
+      }, {
+        responseType: 'blob',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/pdf'
+        }
+      })
+      
+      return response.data
+    } catch (error) {
+      console.error('Error downloading sales report PDF:', error)
+      throw new Error('Failed to download sales report PDF')
+    }
+  },
+
+  /**
+   * Download inventory report PDF
+   */
+  async downloadInventoryReportPdf(inventoryData: InventoryReportData[], summaryStats: any): Promise<Blob> {
+    try {
+      console.log('Downloading inventory report PDF...')
+      const response = await api.post('/reports/inventory/pdf', {
+        inventoryData,
+        summaryStats
+      }, {
+        responseType: 'blob',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/pdf'
+        }
+      })
+      
+      return response.data
+    } catch (error) {
+      console.error('Error downloading inventory report PDF:', error)
+      throw new Error('Failed to download inventory report PDF')
+    }
+  },
+
+  /**
+   * Download user activity report PDF
+   */
+  async downloadUserActivityReportPdf(userActivityData: UserActivityData[]): Promise<Blob> {
+    try {
+      console.log('Downloading user activity report PDF...')
+      const response = await api.post('/reports/user-activity/pdf', {
+        userActivityData
+      }, {
+        responseType: 'blob',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/pdf'
+        }
+      })
+      
+      return response.data
+    } catch (error) {
+      console.error('Error downloading user activity report PDF:', error)
+      throw new Error('Failed to download user activity report PDF')
+    }
   }
 }
 

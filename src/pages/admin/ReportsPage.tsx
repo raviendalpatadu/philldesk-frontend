@@ -135,7 +135,7 @@ const ReportsPage: React.FC = () => {
   }, [selectedPeriod])
 
   useEffect(() => {
-    if (dateRange && dateRange[0] && dateRange[1] && selectedPeriod === 'custom') {
+    if (dateRange?.[0] && dateRange?.[1] && selectedPeriod === 'custom') {
       loadAllData()
     }
   }, [dateRange])
@@ -171,7 +171,6 @@ const ReportsPage: React.FC = () => {
           startDate: today.subtract(3, 'month').format('YYYY-MM-DD'),
           endDate: today.format('YYYY-MM-DD')
         }
-      case 'last_7_days':
       default:
         return {
           startDate: today.subtract(7, 'day').format('YYYY-MM-DD'),
@@ -247,14 +246,61 @@ const ReportsPage: React.FC = () => {
     try {
       setLoading(true)
       
-      // In a real implementation, you would call backend endpoints to generate exports
-      // For now, we'll simulate the export process
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate API call
-      
-      message.success(`${format.toUpperCase()} report exported successfully!`)
-      
-      // Here you would typically trigger a file download
-      // Example: window.open(`/api/reports/export?format=${format}&startDate=${startDate}&endDate=${endDate}`)
+      if (format === 'pdf') {
+        // Get current date range
+        const { startDate, endDate } = getDateRange()
+        
+        // Prepare report data
+        const reportData = {
+          title: `PhillDesk ${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`,
+          startDate,
+          endDate,
+          summaryStats,
+          salesData,
+          inventoryData,
+          userActivityData
+        }
+        
+        // Download PDF based on active tab
+        let pdfBlob: Blob
+        switch (activeTab) {
+          case 'sales':
+            pdfBlob = await reportsService.downloadSalesReportPdf(startDate, endDate, salesData, summaryStats)
+            break
+          case 'inventory':
+            pdfBlob = await reportsService.downloadInventoryReportPdf(inventoryData, summaryStats)
+            break
+          case 'users':
+            pdfBlob = await reportsService.downloadUserActivityReportPdf(userActivityData)
+            break
+          default:
+            pdfBlob = await reportsService.downloadPdfReport(reportData)
+            break
+        }
+        
+        // Create download link
+        const url = window.URL.createObjectURL(pdfBlob)
+        const link = document.createElement('a')
+        link.href = url
+        
+        // Generate filename
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
+        const tabName = activeTab === 'users' ? 'UserActivity' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)
+        link.download = `PhillDesk_${tabName}_Report_${timestamp}.pdf`
+        
+        // Trigger download
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        
+        message.success('PDF report downloaded successfully!')
+        
+      } else {
+        // For Excel and CSV, simulate the export process for now
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        message.success(`${format.toUpperCase()} export functionality will be implemented soon!`)
+      }
       
     } catch (error) {
       console.error('Export error:', error)
@@ -267,6 +313,52 @@ const ReportsPage: React.FC = () => {
   const handleRefresh = () => {
     loadAllData()
     message.success('Reports refreshed successfully!')
+  }
+
+  const handleDownloadCompleteReport = async () => {
+    try {
+      setLoading(true)
+      
+      // Get current date range
+      const { startDate, endDate } = getDateRange()
+      
+      // Prepare comprehensive report data
+      const reportData = {
+        title: `PhillDesk Comprehensive ${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`,
+        startDate,
+        endDate,
+        summaryStats,
+        salesData,
+        inventoryData,
+        userActivityData
+      }
+      
+      // Download comprehensive PDF report
+      const pdfBlob = await reportsService.downloadPdfReport(reportData)
+      
+      // Create download link
+      const url = window.URL.createObjectURL(pdfBlob)
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Generate filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
+      link.download = `PhillDesk_Complete_Report_${timestamp}.pdf`
+      
+      // Trigger download
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      message.success('Complete PDF report downloaded successfully!')
+      
+    } catch (error) {
+      console.error('Complete report download error:', error)
+      message.error('Failed to download complete report')
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Helper function for turnover rate color
@@ -689,6 +781,17 @@ const ReportsPage: React.FC = () => {
       {/* Export Options */}
       <Card style={{ marginTop: '24px' }}>
         <Title level={4}>Export Options</Title>
+        <Row gutter={[16, 16]} style={{ marginBottom: '16px' }}>
+          <Col xs={24}>
+            <Alert
+              message="PDF Export Information"
+              description="PDF exports include all data from the currently selected tab. For comprehensive reports with all data, use the 'Download Complete Report' button."
+              type="info"
+              showIcon
+              style={{ marginBottom: '16px' }}
+            />
+          </Col>
+        </Row>
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12} md={6}>
             <Button 
@@ -696,6 +799,7 @@ const ReportsPage: React.FC = () => {
               icon={<DownloadOutlined />}
               onClick={() => handleExport('pdf')}
               loading={loading}
+              type="primary"
             >
               Download PDF
             </Button>
@@ -704,29 +808,10 @@ const ReportsPage: React.FC = () => {
             <Button 
               block 
               icon={<DownloadOutlined />}
-              onClick={() => handleExport('excel')}
+              onClick={handleDownloadCompleteReport}
               loading={loading}
             >
-              Export to Excel
-            </Button>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Button 
-              block 
-              icon={<FileTextOutlined />}
-              onClick={() => handleExport('csv')}
-              loading={loading}
-            >
-              Export to CSV
-            </Button>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Button 
-              block 
-              icon={<CalendarOutlined />}
-              onClick={() => message.info('Schedule report functionality coming soon')}
-            >
-              Schedule Report
+              Complete Report
             </Button>
           </Col>
         </Row>

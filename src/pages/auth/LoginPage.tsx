@@ -103,7 +103,7 @@ const LoginPage: React.FC = () => {
                   PhillDesk
                 </Title>
                 <Text type="secondary">
-                  Pharmacy Management System
+                  Online Pharmacy Management System
                 </Text>
               </Space>
             </div>

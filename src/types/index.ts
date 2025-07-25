@@ -46,11 +46,13 @@ export interface BackendLoginResponse {
 }
 
 export interface RegisterRequest {
+  username: string;
   email: string;
   password: string;
   firstName: string;
   lastName: string;
-  role: UserRole;
+  phoneNumber?: string;
+  role?: string;
 }
 
 // ============================================================================
@@ -349,14 +351,39 @@ export interface FormField {
 // ============================================================================
 
 export interface Notification {
-  id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  id: number;
   title: string;
   message: string;
-  userId?: string;
+  notificationType: NotificationType;
+  priority: NotificationPriority;
   isRead: boolean;
+  referenceId?: number;
+  referenceType?: string;
   createdAt: string;
-  actionUrl?: string;
+  readAt?: string;
+  user: {
+    id: number;
+    firstName: string;
+    lastName: string;
+  };
+}
+
+export type NotificationType = 
+  | 'LOW_STOCK'
+  | 'EXPIRY_ALERT'
+  | 'PRESCRIPTION_UPLOADED'
+  | 'PRESCRIPTION_APPROVED'
+  | 'PRESCRIPTION_REJECTED'
+  | 'BILL_GENERATED'
+  | 'SYSTEM_ALERT'
+  | 'USER_REGISTRATION';
+
+export type NotificationPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface ScheduledTaskInfo {
+  expiredBillsCount: number;
+  lowStockMedicinesCount: number;
+  expiringMedicinesCount: number;
 }
 
 // ============================================================================

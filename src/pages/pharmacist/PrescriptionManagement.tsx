@@ -2020,34 +2020,6 @@ const PrescriptionManagement: React.FC = () => {
                         </Form.Item>
                       </Card>
                     </Col>
-                    <Col span={12}>
-                      <Card title="Insurance & Inventory" size="small">
-                        <Form.Item
-                          name="insuranceVerified"
-                          valuePropName="checked"
-                        >
-                          <Checkbox>Insurance coverage verified</Checkbox>
-                        </Form.Item>
-                        <Form.Item
-                          name="inventoryChecked"
-                          valuePropName="checked"
-                        >
-                          <Checkbox>Inventory availability confirmed</Checkbox>
-                        </Form.Item>
-                        <Form.Item
-                          name="priorAuthChecked"
-                          valuePropName="checked"
-                        >
-                          <Checkbox>Prior authorization (if required)</Checkbox>
-                        </Form.Item>
-                        <Form.Item
-                          name="prescriptionValid"
-                          valuePropName="checked"
-                        >
-                          <Checkbox>Prescription validity confirmed</Checkbox>
-                        </Form.Item>
-                      </Card>
-                    </Col>
                   </Row>
 
                   <Form.Item label="Pharmacist Notes" name="pharmacistNotes">
@@ -2063,11 +2035,11 @@ const PrescriptionManagement: React.FC = () => {
                     rules={[{ required: true }]}
                   >
                     <Radio.Group>
-                      <Radio value="approve">Approve & Dispense</Radio>
+                      
                       <Radio value="approve_hold">
                         Approve & Hold for Pickup
                       </Radio>
-                      <Radio value="clarification">Request Clarification</Radio>
+                      
                       <Radio value="reject">Reject Prescription</Radio>
                     </Radio.Group>
                   </Form.Item>
