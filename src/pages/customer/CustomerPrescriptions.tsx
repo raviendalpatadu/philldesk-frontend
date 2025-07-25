@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Typography,
   Card,
@@ -53,17 +53,28 @@ const { Option } = Select
 
 const CustomerPrescriptions: React.FC = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  
+  // Read initial status from URL parameters
+  const initialStatus = searchParams.get('status') || 'ALL'
+  
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [filteredPrescriptions, setFilteredPrescriptions] = useState<Prescription[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null)
   const [detailModalVisible, setDetailModalVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatus)
 
   useEffect(() => {
     fetchPrescriptions()
   }, [])
+
+  // Watch for URL parameter changes
+  useEffect(() => {
+    const urlStatus = searchParams.get('status') || 'All'
+    setStatusFilter(urlStatus.toUpperCase())
+  }, [searchParams])
 
   const fetchPrescriptions = async () => {
     try {
@@ -103,7 +114,7 @@ const CustomerPrescriptions: React.FC = () => {
     }
 
     // Apply status filter
-    if (statusFilter !== 'all') {
+    if (statusFilter !== 'ALL') {
       filtered = filtered.filter(prescription => prescription.status === statusFilter)
     }
 
@@ -179,52 +190,12 @@ const CustomerPrescriptions: React.FC = () => {
 
   // Handle download prescription
   const handleDownload = (prescription: Prescription) => {
-    message.success(`Downloading ${prescription.fileName}`)
-    // Implement actual download logic here
+    
   }
 
   // Handle view bills for a prescription
   const handleViewBills = async (prescription: Prescription) => {
     navigate(`/customer/bills?prescriptionId=${prescription.id}`)
-  }
-  const handleDownloadReceipt = async (prescription: Prescription) => {
-    try {
-      const receipt = await customerService.downloadReceipt(prescription.id)
-      console.log('Receipt data:', receipt)
-      
-      // Create a downloadable receipt (in a real app, this would be a PDF)
-      const receiptContent = `
-PRESCRIPTION RECEIPT
-===================
-
-Prescription ID: ${receipt.prescriptionId}
-Prescription Number: ${receipt.prescriptionNumber || 'N/A'}
-Customer: ${receipt.customerName}
-Doctor: ${receipt.doctorName}
-Completed Date: ${new Date(receipt.completedDate).toLocaleDateString()}
-Pharmacist: ${receipt.pharmacistName}
-
-Instructions: ${receipt.instructions || 'None'}
-
-Status: ${receipt.status}
-      `
-      
-      // Create blob and download
-      const blob = new Blob([receiptContent], { type: 'text/plain' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `receipt_${prescription.id}.txt`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      
-      message.success('Receipt downloaded successfully!')
-    } catch (error) {
-      console.error('Error downloading receipt:', error)
-      message.error('Failed to download receipt')
-    }
   }
 
   // Table columns configuration
@@ -283,23 +254,7 @@ Status: ${receipt.status}
               onClick={() => handleViewDetails(record.id)}
             />
           </Tooltip>
-          <Tooltip title="Download Prescription">
-            <Button
-              type="text"
-              icon={<DownloadOutlined />}
-              onClick={() => handleDownload(record)}
-            />
-          </Tooltip>
-          {record.status === 'COMPLETED' && (
-            <Tooltip title="Download Receipt">
-              <Button
-                type="text"
-                icon={<FileProtectOutlined />}
-                onClick={() => handleDownloadReceipt(record)}
-                style={{ color: '#52c41a' }}
-              />
-            </Tooltip>
-          )}
+          
           {(record.status === 'DISPENSED' || record.status === 'COMPLETED') && (
             <Tooltip title="View Bills">
               <Button
@@ -389,7 +344,7 @@ Status: ${receipt.status}
               style={{ width: '100%' }}
               suffixIcon={<FilterOutlined />}
             >
-              <Option value="all">All Status</Option>
+              <Option value="All">All Status</Option>
               <Option value="PENDING">Pending</Option>
               <Option value="APPROVED">Approved</Option>
               <Option value="COMPLETED">Completed</Option>
@@ -441,18 +396,7 @@ Status: ${receipt.status}
             onClick={() => selectedPrescription && handleDownload(selectedPrescription)}
           >
             Download Prescription
-          </Button>,
-          ...(selectedPrescription?.status === 'COMPLETED' ? [
-            <Button
-              key="receipt"
-              type="primary"
-              icon={<FileProtectOutlined />}
-              onClick={() => selectedPrescription && handleDownloadReceipt(selectedPrescription)}
-              style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
-            >
-              Download Receipt
-            </Button>
-          ] : [])
+          </Button>
         ]}
         width={600}
       >

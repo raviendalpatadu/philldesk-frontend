@@ -217,21 +217,6 @@ const PendingPrescriptions: React.FC = () => {
         </Paragraph>
       </div>
 
-      {/* Real-time Updates Info */}
-      <Alert
-        message="Real-time Updates"
-        description="This page automatically refreshes every 30 seconds to show the latest status updates."
-        type="info"
-        icon={<InfoCircleOutlined />}
-        style={{ marginBottom: '24px' }}
-        showIcon
-        action={
-          <Button size="small" onClick={handleRefresh} loading={refreshing}>
-            Refresh Now
-          </Button>
-        }
-      />
-
       {/* Statistics */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col xs={12} sm={8}>
@@ -255,17 +240,7 @@ const PendingPrescriptions: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="Queue Position"
-              value={prescriptions.length > 0 ? prescriptions[0].queuePosition : 0}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#52c41a' }}
-              suffix="of queue"
-            />
-          </Card>
-        </Col>
+
       </Row>
 
       {/* Pending Prescriptions List */}

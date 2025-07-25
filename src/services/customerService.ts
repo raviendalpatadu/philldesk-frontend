@@ -29,15 +29,15 @@ const transformBillData = (apiData: any): Bill => {
     notes: apiData.notes,
     billItems: apiData.billItems ? apiData.billItems.map((item: any) => ({
       id: item.id,
-      medicationName: item.medicineName,
+      medicationName: item.medicineName || 'Unknown Medicine',
       manufacturer: item.manufacturer,
       batchNumber: item.batchNumber,
       strength: item.strength,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      totalPrice: item.totalPrice,
-      dosage: item.dosage,
-      instructions: item.notes
+      quantity: item.quantity || 0,
+      unitPrice: item.unitPrice || 0,
+      totalPrice: item.totalPrice || 0,
+      dosage: item.dosage || item.notes || 'N/A', // Use notes as dosage if dosage not available
+      instructions: item.notes || item.instructions
     })) : [],
     createdAt: convertDateArrayToString(apiData.createdAt),
     updatedAt: apiData.updatedAt ? convertDateArrayToString(apiData.updatedAt) : undefined,
@@ -46,7 +46,22 @@ const transformBillData = (apiData: any): Bill => {
     customerName: apiData.customer ? `${apiData.customer.firstName} ${apiData.customer.lastName}` : undefined,
     prescriptionId: apiData.prescription?.id,
     prescriptionNumber: apiData.prescription?.prescriptionNumber,
-    prescription: apiData.prescription ? transformPrescriptionData(apiData.prescription) : undefined
+    prescription: apiData.prescription ? transformPrescriptionData(apiData.prescription) : undefined,
+    shippingDetails: apiData.shippingDetails ? {
+      recipientName: apiData.shippingDetails.recipientName,
+      contactPhone: apiData.shippingDetails.contactPhone,
+      alternatePhone: apiData.shippingDetails.alternatePhone,
+      email: apiData.shippingDetails.email,
+      addressLine1: apiData.shippingDetails.addressLine1,
+      addressLine2: apiData.shippingDetails.addressLine2,
+      city: apiData.shippingDetails.city,
+      stateProvince: apiData.shippingDetails.stateProvince,
+      postalCode: apiData.shippingDetails.postalCode,
+      country: apiData.shippingDetails.country,
+      deliveryInstructions: apiData.shippingDetails.deliveryInstructions,
+      preferredDeliveryTime: apiData.shippingDetails.preferredDeliveryTime,
+      deliveryFee: apiData.shippingDetails.deliveryFee
+    } : undefined
   };
 };
 
@@ -168,6 +183,23 @@ export interface Bill {
   prescriptionId?: number;
   prescriptionNumber?: string;
   prescription?: Prescription;
+  shippingDetails?: ShippingDetails;
+}
+
+export interface ShippingDetails {
+  recipientName: string;
+  contactPhone: string;
+  alternatePhone?: string;
+  email?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  stateProvince: string;
+  postalCode: string;
+  country: string;
+  deliveryInstructions?: string;
+  preferredDeliveryTime?: string;
+  deliveryFee?: number;
 }
 
 export interface PaymentData {
@@ -176,6 +208,7 @@ export interface PaymentData {
   cvv?: string;
   expiryDate?: string;
   cardHolderName?: string;
+  shippingDetails?: ShippingDetails;
 }
 
 export interface CustomerProfile {
@@ -393,6 +426,33 @@ class CustomerService {
   }
 
   // ============================================================================
+  // Bill Notification Methods
+  // ============================================================================
+
+  /**
+   * Check for recent bill notifications
+   */
+  async getRecentBillNotifications(): Promise<{
+    hasNewBills: boolean;
+    newBillsCount: number;
+    newBills?: Array<{
+      billId: number;
+      billNumber: string;
+      prescriptionNumber: string;
+      amount: number;
+      createdAt: string;
+    }>;
+  }> {
+    try {
+      const response = await api.get('/customer/bills/recent-notifications');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching recent bill notifications:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
   // Enhanced Prescription Completion Methods
   // ============================================================================
 
@@ -524,6 +584,186 @@ class CustomerService {
       throw error;
     }
   }
+
+  /**
+   * Get customer's order history
+   */
+  async getOrderHistory(): Promise<Order[]> {
+    try {
+      const response = await api.get('/customer/orders');
+      return response.data.map((order: any) => transformOrderData(order));
+    } catch (error) {
+      console.error('Error fetching order history:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get tracking information for a specific order
+   */
+  async getOrderTracking(orderId: string): Promise<OrderTracking> {
+    try {
+      const response = await api.get(`/customer/orders/${orderId}/tracking`);
+      return transformTrackingData(response.data);
+    } catch (error) {
+      console.error('Error fetching order tracking:', error);
+      throw error;
+    }
+  }
+
+  // Download bill as PDF
+  async downloadBill(billId: number): Promise<void> {
+    try {
+      const response = await api.get(`/customer/bills/${billId}/download`, {
+        responseType: 'blob',
+      });
+      
+      // Create blob link to download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Get filename from response headers or use default
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = `bill-${billId}.pdf`;
+      if (contentDisposition && contentDisposition.includes('filename=')) {
+        filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading bill:', error);
+      throw error;
+    }
+  }
+}
+
+// Transform API order data to frontend Order format
+const transformOrderData = (apiData: any): Order => {
+  return {
+    key: apiData.orderId,
+    orderId: apiData.orderId,
+    date: apiData.date,
+    prescriptionId: apiData.prescriptionId,
+    doctorName: apiData.doctorName,
+    items: apiData.items ? apiData.items.map((item: any) => ({
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      manufacturer: item.manufacturer,
+      instructions: item.instructions,
+      dosage: item.dosage,
+      frequency: item.frequency
+    })) : [],
+    status: apiData.status,
+    statusCode: getStatusCode(apiData.status),
+    total: apiData.total || 0,
+    shippingCost: apiData.shippingCost || 0,
+    discount: apiData.discount || 0,
+    tax: apiData.tax || 0,
+    netTotal: apiData.netTotal || 0,
+    estimatedDelivery: apiData.estimatedDelivery,
+    actualDelivery: apiData.actualDelivery,
+    trackingNumber: apiData.trackingNumber,
+    courier: apiData.courier || 'PhillDesk Delivery',
+    shippingAddress: apiData.shippingAddress,
+    paymentMethod: apiData.paymentMethod,
+    orderNotes: apiData.orderNotes,
+    canReorder: apiData.canReorder || false,
+    rating: undefined,
+    feedback: undefined
+  };
+};
+
+// Transform API tracking data to frontend format
+const transformTrackingData = (apiData: any): OrderTracking => {
+  return {
+    orderId: apiData.orderId,
+    prescriptionNumber: apiData.prescriptionNumber,
+    trackingNumber: apiData.trackingNumber,
+    courier: apiData.courier || 'PhillDesk Delivery',
+    shippingStatus: apiData.shippingStatus,
+    estimatedDelivery: apiData.estimatedDelivery,
+    actualDelivery: apiData.actualDelivery,
+    timeline: apiData.timeline ? apiData.timeline.map((item: any) => ({
+      status: item.status,
+      description: item.description,
+      timestamp: item.timestamp,
+      completed: item.completed
+    })) : []
+  };
+};
+
+// Helper function to map status to status code
+const getStatusCode = (status: string): number => {
+  switch (status) {
+    case 'Processing': return 1;
+    case 'Confirmed': return 2;
+    case 'Shipped': return 3;
+    case 'In Transit': return 3;
+    case 'Delivered': return 4;
+    case 'Cancelled': return -1;
+    default: return 0;
+  }
+};
+
+// Define Order and related interfaces
+interface Order {
+  key: string;
+  orderId: string;
+  date: string;
+  prescriptionId: string;
+  doctorName: string;
+  items: OrderItem[];
+  status: string;
+  statusCode: number;
+  total: number;
+  shippingCost: number;
+  discount: number;
+  tax: number;
+  netTotal: number;
+  estimatedDelivery?: string;
+  actualDelivery?: string;
+  trackingNumber?: string;
+  courier: string;
+  shippingAddress?: string;
+  paymentMethod?: string;
+  orderNotes?: string;
+  canReorder: boolean;
+  rating?: number;
+  feedback?: string;
+}
+
+interface OrderItem {
+  name: string;
+  quantity: number;
+  price: number;
+  manufacturer: string;
+  instructions?: string;
+  dosage?: string;
+  frequency?: string;
+}
+
+interface OrderTracking {
+  orderId: string;
+  prescriptionNumber: string;
+  trackingNumber?: string;
+  courier?: string;
+  shippingStatus?: string;
+  estimatedDelivery?: string;
+  actualDelivery?: string;
+  timeline: TrackingEvent[];
+}
+
+interface TrackingEvent {
+  status: string;
+  description: string;
+  timestamp?: string;
+  completed: boolean;
 }
 
 export default new CustomerService();

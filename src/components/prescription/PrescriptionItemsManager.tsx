@@ -41,7 +41,6 @@ interface PrescriptionItemsManagerProps {
   onItemsChange?: (items: PrescriptionItem[], total: number) => void
   editable?: boolean
   showHeader?: boolean
-  taxRate?: number
   prescriptionStatus?: string // Add prescription status to control editing
 }
 
@@ -51,7 +50,6 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
   onItemsChange,
   editable = true,
   showHeader = true,
-  taxRate = 0.1,
   prescriptionStatus = 'PENDING'
 }) => {
   const [items, setItems] = useState<PrescriptionItem[]>(initialItems)
@@ -367,7 +365,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
       // Step 5: Update local state
       setItems(savedItems)
       
-      const pricing = prescriptionItemsService.calculatePricing(savedItems, taxRate)
+      const pricing = prescriptionItemsService.calculatePricing(savedItems)
       
       // Step 6: Notify parent component
       if (onItemsChange) {
@@ -420,7 +418,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
     }
   }
 
-  const pricing = prescriptionItemsService.calculatePricing(items, taxRate)
+  const pricing = prescriptionItemsService.calculatePricing(items)
 
   const getAutocompleteValue = (record: PrescriptionItem) => {
     // Handle new response format with direct medicine fields
@@ -691,15 +689,6 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
             </Table.Summary.Row>
             <Table.Summary.Row>
               <Table.Summary.Cell index={0} colSpan={isEditingAllowed ? 4 : 3}>
-                <Text strong>Tax ({(taxRate * 100).toFixed(0)}%):</Text>
-              </Table.Summary.Cell>
-              <Table.Summary.Cell index={1} align="right">
-                <Text strong>${pricing.tax.toFixed(2)}</Text>
-              </Table.Summary.Cell>
-              <Table.Summary.Cell index={2} colSpan={isEditingAllowed ? 2 : 1}></Table.Summary.Cell>
-            </Table.Summary.Row>
-            <Table.Summary.Row>
-              <Table.Summary.Cell index={0} colSpan={isEditingAllowed ? 4 : 3}>
                 <Text strong style={{ fontSize: '16px' }}>Total:</Text>
               </Table.Summary.Cell>
               <Table.Summary.Cell index={1} align="right">
@@ -725,10 +714,6 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Text>Subtotal:</Text>
                 <Text>${pricing.subtotal.toFixed(2)}</Text>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text>Tax ({(taxRate * 100).toFixed(0)}%):</Text>
-                <Text>${pricing.tax.toFixed(2)}</Text>
               </div>
               <Divider style={{ margin: '8px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>

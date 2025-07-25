@@ -38,6 +38,9 @@ const ReorderManagement = React.lazy(
 const BillingManagement = React.lazy(
   () => import("@pages/pharmacist/BillingManagement")
 );
+const ManualBilling = React.lazy(
+  () => import("@pages/pharmacist/ManualBilling")
+);
 const ReportsPage = React.lazy(() => import("@pages/admin/ReportsPage"));
 const CustomerPrescriptions = React.lazy(
   () => import("@pages/customer/CustomerPrescriptions").then(module => ({ default: module.default }))
@@ -49,7 +52,7 @@ const PendingPrescriptions = React.lazy(
   () => import("@pages/customer/PendingPrescriptions")
 );
 const OrdersPage = React.lazy(() => import("@pages/customer/OrdersPage"));
-const CustomerBills = React.lazy(() => import("@pages/customer/CustomerBills"));
+const CustomerBills = React.lazy(() => import("@/pages/customer/CustomerBillsPage"));
 const UserManagement = React.lazy(() => import("@pages/admin/UserManagement"));
 const ProfilePage = React.lazy(() => import("@pages/common/ProfilePage"));
 const SettingsPage = React.lazy(() => import("@pages/admin/SettingsPage"));
@@ -148,6 +151,7 @@ const App: React.FC = () => {
                     <Route path="inventory" element={<PharmacistInventoryManagement />} />
                     <Route path="reorder-management" element={<ReorderManagement />} />
                     <Route path="billing" element={<BillingManagement />} />
+                    <Route path="manual-billing" element={<ManualBilling />} />
                   </Routes>
                 </React.Suspense>
              </ProtectedRoute>

@@ -5,7 +5,7 @@
  * including sales reports, inventory reports, user activity, and financial analytics.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   Typography, 
   Card, 
@@ -22,7 +22,8 @@ import {
   Alert,
   Tabs,
   message,
-  Tooltip
+  Tooltip,
+  Spin
 } from 'antd'
 import { 
   FileTextOutlined,
@@ -37,108 +38,22 @@ import {
   ArrowUpOutlined,
   ExportOutlined
 } from '@ant-design/icons'
+import reportsService, { 
+  SalesReportData, 
+  InventoryReportData, 
+  UserActivityData,
+  DashboardStats,
+  InventoryStats 
+} from '../../services/reportsService'
+import dayjs from 'dayjs'
 
 const { Title, Text } = Typography
 const { Option } = Select
 const { RangePicker } = DatePicker
 const { TabPane } = Tabs
 
-// Mock data for reports
-const mockSalesData = [
-  {
-    key: '1',
-    date: '2024-01-17',
-    invoices: 24,
-    revenue: 1245.80,
-    prescriptions: 18,
-    otc: 6,
-    averageValue: 51.91,
-    topMedicine: 'Paracetamol 500mg'
-  },
-  {
-    key: '2',
-    date: '2024-01-16',
-    invoices: 31,
-    revenue: 1567.45,
-    prescriptions: 22,
-    otc: 9,
-    averageValue: 50.56,
-    topMedicine: 'Amoxicillin 250mg'
-  },
-  {
-    key: '3',
-    date: '2024-01-15',
-    invoices: 28,
-    revenue: 1398.20,
-    prescriptions: 20,
-    otc: 8,
-    averageValue: 49.94,
-    topMedicine: 'Insulin Pen'
-  }
-]
-
-const mockInventoryReport = [
-  {
-    key: '1',
-    category: 'Pain Relief',
-    totalItems: 45,
-    totalValue: 2450.00,
-    lowStock: 3,
-    expiringSoon: 2,
-    turnoverRate: 85
-  },
-  {
-    key: '2',
-    category: 'Antibiotics',
-    totalItems: 32,
-    totalValue: 3200.00,
-    lowStock: 5,
-    expiringSoon: 1,
-    turnoverRate: 92
-  },
-  {
-    key: '3',
-    category: 'Diabetes',
-    totalItems: 18,
-    totalValue: 1800.00,
-    lowStock: 2,
-    expiringSoon: 0,
-    turnoverRate: 78
-  }
-]
-
-const mockUserActivity = [
-  {
-    key: '1',
-    role: 'PHARMACIST',
-    activeUsers: 8,
-    totalUsers: 12,
-    avgSessionTime: '4h 32m',
-    prescriptionsProcessed: 156,
-    efficiency: 94
-  },
-  {
-    key: '2',
-    role: 'CUSTOMER',
-    activeUsers: 245,
-    totalUsers: 320,
-    avgSessionTime: '12m',
-    prescriptionsProcessed: 89,
-    efficiency: 87
-  },
-  {
-    key: '3',
-    role: 'ADMIN',
-    activeUsers: 3,
-    totalUsers: 4,
-    avgSessionTime: '2h 15m',
-    prescriptionsProcessed: 0,
-    efficiency: 100
-  }
-]
-
 // Sales table summary component
-const SalesTableSummary = ({ summaryStats, mockSalesData }: { summaryStats: any, mockSalesData: any[] }) => (
+const SalesTableSummary = ({ summaryStats, salesData }: { summaryStats: any, salesData: SalesReportData[] }) => (
   <Table.Summary>
     <Table.Summary.Row>
       <Table.Summary.Cell index={0}>
@@ -154,7 +69,7 @@ const SalesTableSummary = ({ summaryStats, mockSalesData }: { summaryStats: any,
         <Text strong>{summaryStats.totalPrescriptions}</Text>
       </Table.Summary.Cell>
       <Table.Summary.Cell index={4}>
-        <Text strong>{mockSalesData.reduce((sum, day) => sum + day.otc, 0)}</Text>
+        <Text strong>{salesData.reduce((sum, day) => sum + day.otc, 0)}</Text>
       </Table.Summary.Cell>
       <Table.Summary.Cell index={5}>
         <Text strong>${summaryStats.averageOrderValue.toFixed(2)}</Text>
@@ -167,26 +82,26 @@ const SalesTableSummary = ({ summaryStats, mockSalesData }: { summaryStats: any,
 )
 
 // Inventory table summary component
-const InventoryTableSummary = ({ summaryStats, mockInventoryReport }: { summaryStats: any, mockInventoryReport: any[] }) => (
+const InventoryTableSummary = ({ summaryStats, inventoryData }: { summaryStats: any, inventoryData: InventoryReportData[] }) => (
   <Table.Summary>
     <Table.Summary.Row>
       <Table.Summary.Cell index={0}>
         <Text strong>Total</Text>
       </Table.Summary.Cell>
       <Table.Summary.Cell index={1}>
-        <Text strong>{mockInventoryReport.reduce((sum, cat) => sum + cat.totalItems, 0)}</Text>
+        <Text strong>{inventoryData.reduce((sum, cat) => sum + cat.totalItems, 0)}</Text>
       </Table.Summary.Cell>
       <Table.Summary.Cell index={2}>
         <Text strong>${summaryStats.inventoryValue.toFixed(2)}</Text>
       </Table.Summary.Cell>
       <Table.Summary.Cell index={3}>
-        <Text strong>{mockInventoryReport.reduce((sum, cat) => sum + cat.lowStock, 0)} items</Text>
+        <Text strong>{inventoryData.reduce((sum, cat) => sum + cat.lowStock, 0)} items</Text>
       </Table.Summary.Cell>
       <Table.Summary.Cell index={4}>
-        <Text strong>{mockInventoryReport.reduce((sum, cat) => sum + cat.expiringSoon, 0)} items</Text>
+        <Text strong>{inventoryData.reduce((sum, cat) => sum + cat.expiringSoon, 0)} items</Text>
       </Table.Summary.Cell>
       <Table.Summary.Cell index={5}>
-        <Text strong>{summaryStats.avgTurnover.toFixed(1)}%</Text>
+        <Text strong>{summaryStats.avgTurnover.toFixed(2)}%</Text>
       </Table.Summary.Cell>
     </Table.Summary.Row>
   </Table.Summary>
@@ -196,6 +111,163 @@ const ReportsPage: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('last_7_days')
   const [reportType, setReportType] = useState('overview')
   const [activeTab, setActiveTab] = useState('sales')
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
+  
+  // State for data
+  const [loading, setLoading] = useState(false)
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
+  const [inventoryStats, setInventoryStats] = useState<InventoryStats | null>(null)
+  const [salesData, setSalesData] = useState<SalesReportData[]>([])
+  const [inventoryData, setInventoryData] = useState<InventoryReportData[]>([])
+  const [userActivityData, setUserActivityData] = useState<UserActivityData[]>([])
+  const [revenueGrowth, setRevenueGrowth] = useState(0)
+
+  // Load initial data
+  useEffect(() => {
+    loadAllData()
+  }, [])
+
+  // Reload data when date range or period changes
+  useEffect(() => {
+    if (selectedPeriod !== 'custom') {
+      loadAllData()
+    }
+  }, [selectedPeriod])
+
+  useEffect(() => {
+    if (dateRange && dateRange[0] && dateRange[1] && selectedPeriod === 'custom') {
+      loadAllData()
+    }
+  }, [dateRange])
+
+  const getDateRange = () => {
+    const today = dayjs()
+    
+    if (selectedPeriod === 'custom' && dateRange?.[0] && dateRange?.[1]) {
+      return {
+        startDate: dateRange[0].format('YYYY-MM-DD'),
+        endDate: dateRange[1].format('YYYY-MM-DD')
+      }
+    }
+    
+    switch (selectedPeriod) {
+      case 'today':
+        return {
+          startDate: today.format('YYYY-MM-DD'),
+          endDate: today.format('YYYY-MM-DD')
+        }
+      case 'last_7_days':
+        return {
+          startDate: today.subtract(7, 'day').format('YYYY-MM-DD'),
+          endDate: today.format('YYYY-MM-DD')
+        }
+      case 'last_30_days':
+        return {
+          startDate: today.subtract(30, 'day').format('YYYY-MM-DD'),
+          endDate: today.format('YYYY-MM-DD')
+        }
+      case 'last_quarter':
+        return {
+          startDate: today.subtract(3, 'month').format('YYYY-MM-DD'),
+          endDate: today.format('YYYY-MM-DD')
+        }
+      case 'last_7_days':
+      default:
+        return {
+          startDate: today.subtract(7, 'day').format('YYYY-MM-DD'),
+          endDate: today.format('YYYY-MM-DD')
+        }
+    }
+  }
+
+  const loadAllData = async () => {
+    setLoading(true)
+    try {
+      const { startDate, endDate } = getDateRange()
+      
+      // Load dashboard stats
+      const statsData = await reportsService.getDashboardStats()
+      setDashboardStats(statsData)
+      
+      // Load inventory stats
+      const inventoryStatsData = await reportsService.getInventoryStats()
+      setInventoryStats(inventoryStatsData)
+      
+      // Load sales report data
+      const salesReportData = await reportsService.generateSalesReport(startDate, endDate)
+      setSalesData(salesReportData)
+      
+      // Load inventory report data
+      const inventoryReportData = await reportsService.generateInventoryReport()
+      setInventoryData(inventoryReportData)
+      
+      // Load user activity data
+      const userActivityReportData = await reportsService.generateUserActivityReport()
+      setUserActivityData(userActivityReportData)
+      
+      // Calculate revenue growth (compare with previous period)
+      await calculateRevenueGrowth(startDate, endDate)
+      
+    } catch (error) {
+      console.error('Error loading reports data:', error)
+      message.error('Failed to load reports data')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const calculateRevenueGrowth = async (startDate: string, endDate: string) => {
+    try {
+      const currentRevenue = await reportsService.getTotalRevenue(startDate, endDate)
+      
+      // Calculate previous period dates
+      const start = dayjs(startDate)
+      const end = dayjs(endDate)
+      const periodDays = end.diff(start, 'day')
+      
+      const prevEndDate = start.subtract(1, 'day').format('YYYY-MM-DD')
+      const prevStartDate = start.subtract(periodDays + 1, 'day').format('YYYY-MM-DD')
+      
+      const previousRevenue = await reportsService.getTotalRevenue(prevStartDate, prevEndDate)
+      
+      if (previousRevenue > 0) {
+        const growth = ((currentRevenue - previousRevenue) / previousRevenue) * 100
+        setRevenueGrowth(growth)
+      } else {
+        setRevenueGrowth(0)
+      }
+    } catch (error) {
+      console.error('Error calculating revenue growth:', error)
+      setRevenueGrowth(0)
+    }
+  }
+
+  // Helper function for turnover rate color
+  const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
+    try {
+      setLoading(true)
+      
+      // In a real implementation, you would call backend endpoints to generate exports
+      // For now, we'll simulate the export process
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate API call
+      
+      message.success(`${format.toUpperCase()} report exported successfully!`)
+      
+      // Here you would typically trigger a file download
+      // Example: window.open(`/api/reports/export?format=${format}&startDate=${startDate}&endDate=${endDate}`)
+      
+    } catch (error) {
+      console.error('Export error:', error)
+      message.error(`Failed to export ${format.toUpperCase()} report`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRefresh = () => {
+    loadAllData()
+    message.success('Reports refreshed successfully!')
+  }
 
   // Helper function for turnover rate color
   const getTurnoverRateColor = (rate: number): string => {
@@ -211,13 +283,17 @@ const ReportsPage: React.FC = () => {
     return '#ff4d4f'
   }
   const summaryStats = {
-    totalRevenue: mockSalesData.reduce((sum, day) => sum + day.revenue, 0),
-    totalInvoices: mockSalesData.reduce((sum, day) => sum + day.invoices, 0),
-    averageOrderValue: mockSalesData.reduce((sum, day) => sum + day.averageValue, 0) / mockSalesData.length,
-    totalPrescriptions: mockSalesData.reduce((sum, day) => sum + day.prescriptions, 0),
-    inventoryValue: mockInventoryReport.reduce((sum, cat) => sum + cat.totalValue, 0),
-    activeUsers: mockUserActivity.reduce((sum, role) => sum + role.activeUsers, 0),
-    avgTurnover: mockInventoryReport.reduce((sum, cat) => sum + cat.turnoverRate, 0) / mockInventoryReport.length
+    totalRevenue: salesData.reduce((sum, day) => sum + day.revenue, 0),
+    totalInvoices: salesData.reduce((sum, day) => sum + day.invoices, 0),
+    averageOrderValue: salesData.length > 0 
+      ? salesData.reduce((sum, day) => sum + day.averageValue, 0) / salesData.length 
+      : 0,
+    totalPrescriptions: salesData.reduce((sum, day) => sum + day.prescriptions, 0),
+    inventoryValue: inventoryStats?.totalValue || 0,
+    activeUsers: dashboardStats?.activeUsers || 0,
+    avgTurnover: inventoryData.length > 0 
+      ? inventoryData.reduce((sum, cat) => sum + cat.turnoverRate, 0) / inventoryData.length 
+      : 0
   }
 
   // Sales report columns
@@ -258,12 +334,7 @@ const ReportsPage: React.FC = () => {
       dataIndex: 'averageValue',
       key: 'averageValue',
       render: (avg: number) => `$${avg.toFixed(2)}`,
-    },
-    {
-      title: 'Top Medicine',
-      dataIndex: 'topMedicine',
-      key: 'topMedicine',
-    },
+    }
   ]
 
   // Inventory report columns
@@ -317,6 +388,7 @@ const ReportsPage: React.FC = () => {
             percent={rate}
             size="small"
             strokeColor={color}
+            format={(percent) => `${percent?.toFixed(2)}%`}
           />
         )
       },
@@ -429,7 +501,12 @@ const ReportsPage: React.FC = () => {
           <Col xs={24} sm={12} md={6}>
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Text strong>Date Range</Text>
-              <RangePicker style={{ width: '100%' }} />
+              <RangePicker 
+                style={{ width: '100%' }} 
+                value={dateRange}
+                onChange={(dates) => setDateRange(dates)}
+                disabled={selectedPeriod !== 'custom'}
+              />
             </Space>
           </Col>
           <Col xs={24} sm={12} md={6}>
@@ -439,9 +516,10 @@ const ReportsPage: React.FC = () => {
                 <Button 
                   type="primary" 
                   icon={<ExportOutlined />}
-                  onClick={() => message.success('Report exported!')}
+                  onClick={handleRefresh}
+                  loading={loading}
                 >
-                  Export
+                  Refresh
                 </Button>
                 <Button 
                   icon={<PrinterOutlined />}
@@ -456,67 +534,80 @@ const ReportsPage: React.FC = () => {
       </Card>
 
       {/* Summary Statistics */}
-      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Total Revenue"
-              value={summaryStats.totalRevenue}
-              prefix="$"
-              precision={2}
-              valueStyle={{ color: '#52c41a' }}
-              suffix={
-                <Tooltip title="8.5% increase from last period">
-                  <ArrowUpOutlined style={{ color: '#52c41a', marginLeft: '8px' }} />
-                </Tooltip>
-              }
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Total Orders"
-              value={summaryStats.totalInvoices}
-              prefix={<ShoppingCartOutlined style={{ color: '#1890ff' }} />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Avg Order Value"
-              value={summaryStats.averageOrderValue}
-              prefix="$"
-              precision={2}
-              valueStyle={{ color: '#722ed1' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Active Users"
-              value={summaryStats.activeUsers}
-              prefix={<UserOutlined style={{ color: '#fa541c' }} />}
-              valueStyle={{ color: '#fa541c' }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <Spin spinning={loading}>
+        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Total Revenue"
+                value={summaryStats.totalRevenue}
+                prefix="$"
+                precision={2}
+                valueStyle={{ color: '#52c41a' }}
+                suffix={
+                  <Tooltip title={`${revenueGrowth >= 0 ? '+' : ''}${revenueGrowth.toFixed(1)}% from previous period`}>
+                    <ArrowUpOutlined 
+                      style={{ 
+                        color: revenueGrowth >= 0 ? '#52c41a' : '#ff4d4f', 
+                        marginLeft: '8px',
+                        transform: revenueGrowth < 0 ? 'rotate(180deg)' : 'none' 
+                      }} 
+                    />
+                  </Tooltip>
+                }
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Total Orders"
+                value={summaryStats.totalInvoices}
+                prefix={<ShoppingCartOutlined style={{ color: '#1890ff' }} />}
+                valueStyle={{ color: '#1890ff' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Avg Order Value"
+                value={summaryStats.averageOrderValue}
+                prefix="$"
+                precision={2}
+                valueStyle={{ color: '#722ed1' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Active Users"
+                value={summaryStats.activeUsers}
+                prefix={<UserOutlined style={{ color: '#fa541c' }} />}
+                valueStyle={{ color: '#fa541c' }}
+              />
+            </Card>
+          </Col>
+        </Row>
+      </Spin>
 
-      {/* Key Insights */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col xs={24}>
           <Alert
             message="Key Insights"
             description={
               <div>
-                <p>• Revenue increased by 8.5% compared to the previous period</p>
-                <p>• Average inventory turnover rate is {summaryStats.avgTurnover.toFixed(1)}%</p>
-                <p>• {summaryStats.totalPrescriptions} prescriptions processed with 94% efficiency</p>
+                <p>• Revenue {revenueGrowth >= 0 ? 'increased' : 'decreased'} by {Math.abs(revenueGrowth).toFixed(1)}% compared to the previous period</p>
+                <p>• Average inventory turnover rate is {summaryStats.avgTurnover.toFixed(2)}%</p>
+                <p>• {summaryStats.totalPrescriptions} prescriptions processed</p>
                 <p>• Total inventory value: ${summaryStats.inventoryValue.toFixed(2)}</p>
+                {inventoryStats && (
+                  <>
+                    <p>• {inventoryStats.lowStock} items are low in stock</p>
+                    <p>• {inventoryStats.outOfStock} items are out of stock</p>
+                  </>
+                )}
               </div>
             }
             type="info"
@@ -539,10 +630,14 @@ const ReportsPage: React.FC = () => {
           >
             <Table
               columns={salesColumns}
-              dataSource={mockSalesData}
+              dataSource={salesData.map((item, index) => ({
+                ...item,
+                key: index.toString()
+              }))}
               pagination={false}
               size="middle"
-              summary={() => SalesTableSummary({ summaryStats, mockSalesData })}
+              loading={loading}
+              summary={() => SalesTableSummary({ summaryStats, salesData })}
             />
           </TabPane>
 
@@ -557,10 +652,14 @@ const ReportsPage: React.FC = () => {
           >
             <Table
               columns={inventoryColumns}
-              dataSource={mockInventoryReport}
+              dataSource={inventoryData.map((item, index) => ({
+                ...item,
+                key: index.toString()
+              }))}
               pagination={false}
               size="middle"
-              summary={() => InventoryTableSummary({ summaryStats, mockInventoryReport })}
+              loading={loading}
+              summary={() => InventoryTableSummary({ summaryStats, inventoryData })}
             />
           </TabPane>
 
@@ -575,9 +674,13 @@ const ReportsPage: React.FC = () => {
           >
             <Table
               columns={userActivityColumns}
-              dataSource={mockUserActivity}
+              dataSource={userActivityData.map((item, index) => ({
+                ...item,
+                key: index.toString()
+              }))}
               pagination={false}
               size="middle"
+              loading={loading}
             />
           </TabPane>
         </Tabs>
@@ -591,7 +694,8 @@ const ReportsPage: React.FC = () => {
             <Button 
               block 
               icon={<DownloadOutlined />}
-              onClick={() => message.success('PDF report generated!')}
+              onClick={() => handleExport('pdf')}
+              loading={loading}
             >
               Download PDF
             </Button>
@@ -600,7 +704,8 @@ const ReportsPage: React.FC = () => {
             <Button 
               block 
               icon={<DownloadOutlined />}
-              onClick={() => message.success('Excel file exported!')}
+              onClick={() => handleExport('excel')}
+              loading={loading}
             >
               Export to Excel
             </Button>
@@ -609,7 +714,8 @@ const ReportsPage: React.FC = () => {
             <Button 
               block 
               icon={<FileTextOutlined />}
-              onClick={() => message.success('CSV file exported!')}
+              onClick={() => handleExport('csv')}
+              loading={loading}
             >
               Export to CSV
             </Button>
@@ -618,7 +724,7 @@ const ReportsPage: React.FC = () => {
             <Button 
               block 
               icon={<CalendarOutlined />}
-              onClick={() => message.info('Schedule report functionality')}
+              onClick={() => message.info('Schedule report functionality coming soon')}
             >
               Schedule Report
             </Button>

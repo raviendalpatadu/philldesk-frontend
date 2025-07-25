@@ -23,10 +23,10 @@ import {
   message,
   Tooltip,
   Avatar,
-  Badge,
   Divider,
   Descriptions,
-  Alert
+  Alert,
+  Popconfirm
 } from 'antd'
 import { 
   EditOutlined,
@@ -43,122 +43,101 @@ import {
   SecurityScanOutlined,
   UserAddOutlined,
   ExportOutlined,
-  CalendarOutlined
+  CalendarOutlined,
+  ReloadOutlined
 } from '@ant-design/icons'
+import { UserService, User, CreateUserRequest, UpdateUserRequest, UserStats } from '../../services/userService'
+import { RoleService, Role } from '../../services/roleService'
 
 const { Title, Text } = Typography
 const { Option } = Select
 
-// Mock data for users
-const mockUsers = [
-  {
-    key: '1',
-    id: 'USR-001',
-    name: 'Dr. Sarah Wilson',
-    email: 'sarah.wilson@philldesk.com',
-    phone: '+1-555-0101',
-    role: 'PHARMACIST',
-    status: 'Active',
-    lastLogin: '2024-01-17T10:30:00Z',
-    createdAt: '2023-06-15T09:00:00Z',
-    department: 'Pharmacy Operations',
-    permissions: ['prescriptions_read', 'prescriptions_write', 'inventory_read', 'billing_write'],
-    loginCount: 245,
-    profilePicture: null
-  },
-  {
-    key: '2',
-    id: 'USR-002',
-    name: 'John Smith',
-    email: 'john.smith@gmail.com',
-    phone: '+1-555-0102',
-    role: 'CUSTOMER',
-    status: 'Active',
-    lastLogin: '2024-01-16T15:45:00Z',
-    createdAt: '2023-08-22T14:20:00Z',
-    department: null,
-    permissions: ['prescriptions_read', 'orders_read', 'billing_read'],
-    loginCount: 89,
-    profilePicture: null
-  },
-  {
-    key: '3',
-    id: 'USR-003',
-    name: 'Admin User',
-    email: 'admin@philldesk.com',
-    phone: '+1-555-0103',
-    role: 'ADMIN',
-    status: 'Active',
-    lastLogin: '2024-01-17T11:15:00Z',
-    createdAt: '2023-01-10T08:00:00Z',
-    department: 'System Administration',
-    permissions: ['all_permissions'],
-    loginCount: 1024,
-    profilePicture: null
-  },
-  {
-    key: '4',
-    id: 'USR-004',
-    name: 'Dr. Michael Brown',
-    email: 'michael.brown@philldesk.com',
-    phone: '+1-555-0104',
-    role: 'PHARMACIST',
-    status: 'Inactive',
-    lastLogin: '2023-12-20T16:30:00Z',
-    createdAt: '2023-03-05T10:15:00Z',
-    department: 'Pharmacy Operations',
-    permissions: ['prescriptions_read', 'inventory_read'],
-    loginCount: 156,
-    profilePicture: null
-  },
-  {
-    key: '5',
-    id: 'USR-005',
-    name: 'Emma Davis',
-    email: 'emma.davis@gmail.com',
-    phone: '+1-555-0105',
-    role: 'CUSTOMER',
-    status: 'Suspended',
-    lastLogin: '2024-01-10T09:20:00Z',
-    createdAt: '2023-11-12T12:45:00Z',
-    department: null,
-    permissions: [],
-    loginCount: 23,
-    profilePicture: null
-  }
-]
-
 const UserManagement: React.FC = () => {
-  const [users] = useState(mockUsers)
-  const [filteredUsers, setFilteredUsers] = useState(mockUsers)
-  const [selectedUser, setSelectedUser] = useState<any>(null)
+  // State management
+  const [users, setUsers] = useState<User[]>([])
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [userModalVisible, setUserModalVisible] = useState(false)
   const [viewModalVisible, setViewModalVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [isEditing, setIsEditing] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [stats, setStats] = useState<UserStats>({
+    totalUsers: 0,
+    activeUsers: 0,
+    inactiveUsers: 0,
+    adminUsers: 0,
+    pharmacistUsers: 0,
+    customerUsers: 0,
+    recentLogins: 0
+  })
   const [form] = Form.useForm()
 
-  // Calculate statistics
-  const stats = {
-    totalUsers: users.length,
-    activeUsers: users.filter(user => user.status === 'Active').length,
-    pharmacists: users.filter(user => user.role === 'PHARMACIST').length,
-    customers: users.filter(user => user.role === 'CUSTOMER').length,
-    admins: users.filter(user => user.role === 'ADMIN').length,
-    suspendedUsers: users.filter(user => user.status === 'Suspended').length,
-    recentLogins: users.filter(user => {
-      const loginDate = new Date(user.lastLogin)
-      const today = new Date()
-      const diffTime = Math.abs(today.getTime() - loginDate.getTime())
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-      return diffDays <= 7
-    }).length
+  // ============================================================================
+  // Data Loading Functions
+  // ============================================================================
+
+  /**
+   * Load all users from backend
+   */
+  const loadUsers = async () => {
+    try {
+      setLoading(true)
+      const usersData = await UserService.getAllUsers()
+      setUsers(usersData)
+      setFilteredUsers(usersData)
+      
+      // Calculate and set statistics
+      const statsData = await UserService.getUserStats()
+      setStats(statsData)
+    } catch (error) {
+      console.error('Failed to load users:', error)
+      message.error('Failed to load users. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // Get avatar color based on role
-  const getAvatarColor = (role: string) => {
+  /**
+   * Load all roles from backend
+   */
+  const loadRoles = async () => {
+    try {
+      const rolesData = await RoleService.getAllRoles()
+      setRoles(rolesData)
+    } catch (error) {
+      console.error('Failed to load roles:', error)
+      message.error('Failed to load roles.')
+    }
+  }
+
+  /**
+   * Initial data loading
+   */
+  useEffect(() => {
+    loadUsers()
+    loadRoles()
+  }, [])
+
+  // ============================================================================
+  // Helper Functions
+  // ============================================================================
+
+  /**
+   * Get full name from user object
+   */
+  const getFullName = (user: User): string => {
+    return `${user.firstName} ${user.lastName}`
+  }
+
+  /**
+   * Get avatar color based on role
+   */
+  const getAvatarColor = (role: string): string => {
     switch (role) {
       case 'ADMIN': return '#722ed1'
       case 'PHARMACIST': return '#1890ff'
@@ -167,56 +146,32 @@ const UserManagement: React.FC = () => {
     }
   }
 
-  // Filter users
-  const handleFilter = () => {
-    let filtered = users
-
-    if (searchText) {
-      filtered = filtered.filter(user => 
-        user.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchText.toLowerCase()) ||
-        user.id.toLowerCase().includes(searchText.toLowerCase())
-      )
-    }
-
-    if (roleFilter !== 'all') {
-      filtered = filtered.filter(user => user.role === roleFilter)
-    }
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(user => user.status === statusFilter)
-    }
-
-    setFilteredUsers(filtered)
-  }
-
-  // Get status display
-  const getStatusDisplay = (status: string) => {
-    const configs = {
-      'Active': { color: 'green', text: 'Active' },
-      'Inactive': { color: 'orange', text: 'Inactive' },
-      'Suspended': { color: 'red', text: 'Suspended' },
-      'Pending': { color: 'blue', text: 'Pending Approval' }
-    }
-    
-    const config = configs[status as keyof typeof configs] || { color: 'default', text: status }
-    
+  /**
+   * Get status display
+   */
+  const getStatusDisplay = (isActive: boolean) => {
     return (
-      <Tag color={config.color}>
-        {config.text}
+      <Tag color={isActive ? 'green' : 'red'}>
+        {isActive ? 'Active' : 'Inactive'}
       </Tag>
     )
   }
 
-  // Get role display
-  const getRoleDisplay = (role: string) => {
+  /**
+   * Get role display
+   */
+  const getRoleDisplay = (role: Role) => {
     const configs = {
       'ADMIN': { color: 'purple', icon: <SecurityScanOutlined />, text: 'Admin' },
       'PHARMACIST': { color: 'blue', icon: <UserOutlined />, text: 'Pharmacist' },
       'CUSTOMER': { color: 'green', icon: <TeamOutlined />, text: 'Customer' }
     }
     
-    const config = configs[role as keyof typeof configs] || { color: 'default', icon: <UserOutlined />, text: role }
+    const config = configs[role.name] || { 
+      color: 'default', 
+      icon: <UserOutlined />, 
+      text: role.name 
+    }
     
     return (
       <Tag color={config.color} icon={config.icon}>
@@ -225,49 +180,204 @@ const UserManagement: React.FC = () => {
     )
   }
 
-  // Create/Edit user
-  const handleUserModal = (user?: any) => {
-    setSelectedUser(user)
+  // ============================================================================
+  // Filtering Functions
+  // ============================================================================
+
+  /**
+   * Apply filters to user list
+   */
+  const applyFilters = async () => {
+    try {
+      const filtered = await UserService.filterUsers(users, {
+        role: roleFilter,
+        status: statusFilter === 'Active' ? 'Active' : statusFilter === 'Inactive' ? 'Inactive' : undefined,
+        searchTerm: searchText
+      })
+      setFilteredUsers(filtered)
+    } catch (error) {
+      console.error('Error applying filters:', error)
+      message.error('Error filtering users')
+    }
+  }
+
+  /**
+   * Clear all filters
+   */
+  const clearFilters = () => {
+    setSearchText('')
+    setRoleFilter('all')
+    setStatusFilter('all')
+    setFilteredUsers(users)
+  }
+
+  // Apply filters when dependencies change
+  useEffect(() => {
+    applyFilters()
+  }, [searchText, roleFilter, statusFilter, users])
+
+  // ============================================================================
+  // CRUD Operations
+  // ============================================================================
+
+  /**
+   * Create new user
+   */
+  const handleCreateUser = async (values: any) => {
+    try {
+      setSubmitting(true)
+
+      const createUserData: CreateUserRequest = {
+        username: values.username,
+        email: values.email,
+        password: values.password,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        phone: values.phone,
+        address: values.address,
+        roleId: values.roleId
+      }
+
+      await UserService.createUser(createUserData)
+      message.success('User created successfully!')
+      setUserModalVisible(false)
+      form.resetFields()
+      await loadUsers() // Refresh the user list
+    } catch (error: any) {
+      console.error('Error creating user:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to create user'
+      message.error(errorMessage)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  /**
+   * Update existing user
+   */
+  const handleUpdateUser = async (values: any) => {
+    if (!selectedUser) return
+
+    try {
+      setSubmitting(true)
+
+      // Ensure roleId is present - use existing role if not provided
+      const roleId = values.roleId || selectedUser.role.id
+
+      const updateUserData: UpdateUserRequest = {
+        username: values.username,
+        email: values.email,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        phone: values.phone || null, // Allow clearing phone
+        address: values.address || null, // Allow clearing address
+        isActive: values.isActive,
+        roleId: roleId
+      }
+
+      console.log('Update user data:', updateUserData) // Debug log
+      console.log('Form values:', values) // Debug log
+
+      await UserService.updateUser(selectedUser.id, updateUserData)
+      message.success('User updated successfully!')
+      setUserModalVisible(false)
+      setSelectedUser(null)
+      await loadUsers() // Refresh the user list
+    } catch (error: any) {
+      console.error('Error updating user:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to update user'
+      message.error(errorMessage)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  /**
+   * Delete user
+   */
+  const handleDeleteUser = async (user: User) => {
+    try {
+      await UserService.deleteUser(user.id)
+      message.success('User deleted successfully!')
+      await loadUsers() // Refresh the user list
+    } catch (error: any) {
+      console.error('Error deleting user:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to delete user'
+      message.error(errorMessage)
+    }
+  }
+
+  /**
+   * Toggle user status (activate/deactivate)
+   */
+  const handleToggleUserStatus = async (user: User) => {
+    try {
+      if (user.isActive) {
+        await UserService.deactivateUser(user.id)
+        message.success('User deactivated successfully!')
+      } else {
+        await UserService.activateUser(user.id)
+        message.success('User activated successfully!')
+      }
+      await loadUsers() // Refresh the user list
+    } catch (error: any) {
+      console.error('Error toggling user status:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to update user status'
+      message.error(errorMessage)
+    }
+  }
+
+  // ============================================================================
+  // Modal Functions
+  // ============================================================================
+
+  /**
+   * Open create/edit user modal
+   */
+  const handleUserModal = (user?: User) => {
+    setSelectedUser(user || null)
     setIsEditing(!!user)
     setUserModalVisible(true)
     
     if (user) {
       form.setFieldsValue({
-        name: user.name,
+        username: user.username,
         email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
         phone: user.phone,
-        role: user.role,
-        status: user.status,
-        department: user.department
+        address: user.address,
+        isActive: user.isActive,
+        roleId: user.role.id
       })
     } else {
       form.resetFields()
     }
   }
 
-  // View user details
-  const viewUserDetails = (user: any) => {
+  /**
+   * Open user details modal
+   */
+  const viewUserDetails = (user: User) => {
     setSelectedUser(user)
     setViewModalVisible(true)
   }
 
-  // Toggle user status
-  const toggleUserStatus = (user: any) => {
-    const newStatus = user.status === 'Active' ? 'Inactive' : 'Active'
-    message.success(`User ${newStatus.toLowerCase()} successfully!`)
-  }
-
-  // Delete user
-  const deleteUser = (user: any) => {
-    Modal.confirm({
-      title: 'Delete User',
-      content: `Are you sure you want to delete ${user.name}? This action cannot be undone.`,
-      okText: 'Delete',
-      okType: 'danger',
-      onOk: () => {
-        message.success('User deleted successfully!')
+  /**
+   * Handle form submission
+   */
+  const handleFormSubmit = async () => {
+    try {
+      const values = await form.validateFields()
+      
+      if (isEditing) {
+        await handleUpdateUser(values)
+      } else {
+        await handleCreateUser(values)
       }
-    })
+    } catch (error) {
+      console.error('Form validation failed:', error)
+    }
   }
 
   // Table columns
@@ -276,20 +386,33 @@ const UserManagement: React.FC = () => {
       title: 'User',
       key: 'user',
       width: 250,
-      render: (_: any, record: any) => (
-        <Space>
-          <Avatar 
-            icon={<UserOutlined />} 
-            src={record.profilePicture}
-            style={{ backgroundColor: getAvatarColor(record.role) }}
-          />
-          <div>
-            <div style={{ fontWeight: 'bold' }}>{record.name}</div>
-            <div style={{ fontSize: '12px', color: '#666' }}>{record.id}</div>
-            <div style={{ fontSize: '12px', color: '#666' }}>{record.email}</div>
-          </div>
-        </Space>
-      ),
+      render: (_: any, record: User) => {
+        const isWalkInCustomer = record.email.startsWith('walkin_')
+        
+        return (
+          <Space>
+            <Avatar 
+              icon={<UserOutlined />} 
+              style={{ backgroundColor: getAvatarColor(record.role.name) }}
+            />
+            <div>
+              <div style={{ fontWeight: 'bold' }}>
+                {getFullName(record)}
+                {isWalkInCustomer && (
+                  <Tag 
+                    color="orange" 
+                    style={{ marginLeft: '8px', fontSize: '10px', padding: '0 4px' }}
+                  >
+                    Walk-in
+                  </Tag>
+                )}
+              </div>
+              <div style={{ fontSize: '12px', color: '#666' }}>@{record.username}</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>{record.email}</div>
+            </div>
+          </Space>
+        )
+      },
     },
     {
       title: 'Role',
@@ -301,40 +424,43 @@ const UserManagement: React.FC = () => {
         { text: 'Pharmacist', value: 'PHARMACIST' },
         { text: 'Customer', value: 'CUSTOMER' },
       ],
-      onFilter: (value: any, record: any) => record.role === value,
-      render: (role: string) => getRoleDisplay(role),
+      onFilter: (value: any, record: User) => record.role.name === value,
+      render: (role: Role) => getRoleDisplay(role),
     },
     {
       title: 'Status',
-      dataIndex: 'status',
+      dataIndex: 'isActive',
       key: 'status',
       width: 120,
       filters: [
-        { text: 'Active', value: 'Active' },
-        { text: 'Inactive', value: 'Inactive' },
-        { text: 'Suspended', value: 'Suspended' },
+        { text: 'Active', value: true },
+        { text: 'Inactive', value: false },
       ],
-      onFilter: (value: any, record: any) => record.status === value,
-      render: (status: string) => getStatusDisplay(status),
+      onFilter: (value: any, record: User) => record.isActive === value,
+      render: (isActive: boolean) => getStatusDisplay(isActive),
     },
     {
-      title: 'Department',
-      dataIndex: 'department',
-      key: 'department',
+      title: 'Phone',
+      dataIndex: 'phone',
+      key: 'phone',
       width: 150,
-      render: (department: string) => department || <Text type="secondary">-</Text>,
+      render: (phone: string) => phone || <Text type="secondary">-</Text>,
     },
     {
-      title: 'Last Login',
-      dataIndex: 'lastLogin',
-      key: 'lastLogin',
+      title: 'Created',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
       width: 150,
-      sorter: (a: any, b: any) => new Date(a.lastLogin).getTime() - new Date(b.lastLogin).getTime(),
-      render: (lastLogin: string) => (
+      sorter: (a: User, b: User) => {
+        const dateA = UserService.isValidDate(a.createdAt) ? UserService.convertJavaDateArrayToDate(a.createdAt).getTime() : 0
+        const dateB = UserService.isValidDate(b.createdAt) ? UserService.convertJavaDateArrayToDate(b.createdAt).getTime() : 0
+        return dateA - dateB
+      },
+      render: (createdAt: string | number[]) => (
         <div>
-          <div>{new Date(lastLogin).toLocaleDateString()}</div>
+          <div>{UserService.formatDate(createdAt, 'Invalid Date')}</div>
           <div style={{ fontSize: '12px', color: '#666' }}>
-            {new Date(lastLogin).toLocaleTimeString()}
+            {UserService.formatTime(createdAt, 'Invalid Time')}
           </div>
         </div>
       ),
@@ -343,53 +469,111 @@ const UserManagement: React.FC = () => {
       title: 'Actions',
       key: 'actions',
       width: 200,
-      render: (_: any, record: any) => (
-        <Space size="small">
-          <Tooltip title="View Details">
-            <Button 
-              type="text" 
-              icon={<EyeOutlined />} 
-              size="small"
-              onClick={() => viewUserDetails(record)}
-            />
-          </Tooltip>
-          
-          <Tooltip title="Edit User">
-            <Button 
-              type="text" 
-              icon={<EditOutlined />} 
-              size="small"
-              onClick={() => handleUserModal(record)}
-            />
-          </Tooltip>
-          
-          <Tooltip title={record.status === 'Active' ? 'Deactivate' : 'Activate'}>
-            <Button 
-              type="text" 
-              icon={record.status === 'Active' ? <LockOutlined /> : <UnlockOutlined />} 
-              size="small"
-              onClick={() => toggleUserStatus(record)}
-            />
-          </Tooltip>
-          
-          <Tooltip title="Delete User">
-            <Button 
-              type="text" 
-              icon={<DeleteOutlined />} 
-              size="small"
-              danger
-              onClick={() => deleteUser(record)}
-            />
-          </Tooltip>
-        </Space>
-      ),
+      render: (_: any, record: User) => {
+        // Check if this is a walk-in customer (email starts with "walkin_")
+        const isWalkInCustomer = record.email.startsWith('walkin_')
+        
+        if (isWalkInCustomer) {
+          return (
+            <Space size="small">
+              <Tooltip title="View Details">
+                <Button 
+                  type="text" 
+                  icon={<EyeOutlined />} 
+                  size="small"
+                  onClick={() => viewUserDetails(record)}
+                />
+              </Tooltip>
+              
+              <Tooltip title="Walk-in customers cannot be modified">
+                <Button 
+                  type="text" 
+                  icon={<EditOutlined />} 
+                  size="small"
+                  disabled
+                />
+              </Tooltip>
+              
+              <Tooltip title="Walk-in customers cannot be modified">
+                <Button 
+                  type="text" 
+                  icon={<LockOutlined />} 
+                  size="small"
+                  disabled
+                />
+              </Tooltip>
+              
+              <Tooltip title="Walk-in customers cannot be deleted">
+                <Button 
+                  type="text" 
+                  icon={<DeleteOutlined />} 
+                  size="small"
+                  disabled
+                  danger
+                />
+              </Tooltip>
+            </Space>
+          )
+        }
+        
+        return (
+          <Space size="small">
+            <Tooltip title="View Details">
+              <Button 
+                type="text" 
+                icon={<EyeOutlined />} 
+                size="small"
+                onClick={() => viewUserDetails(record)}
+              />
+            </Tooltip>
+            
+            <Tooltip title="Edit User">
+              <Button 
+                type="text" 
+                icon={<EditOutlined />} 
+                size="small"
+                onClick={() => handleUserModal(record)}
+              />
+            </Tooltip>
+            
+            <Tooltip title={record.isActive ? 'Deactivate' : 'Activate'}>
+              <Popconfirm
+                title={`${record.isActive ? 'Deactivate' : 'Activate'} User`}
+                description={`Are you sure you want to ${record.isActive ? 'deactivate' : 'activate'} this user?`}
+                onConfirm={() => handleToggleUserStatus(record)}
+                okText="Yes"
+                cancelText="No"
+              >
+                <Button 
+                  type="text" 
+                  icon={record.isActive ? <LockOutlined /> : <UnlockOutlined />} 
+                  size="small"
+                />
+              </Popconfirm>
+            </Tooltip>
+            
+            <Tooltip title="Delete User">
+              <Popconfirm
+                title="Delete User"
+                description={`Are you sure you want to delete ${getFullName(record)}? This action cannot be undone.`}
+                onConfirm={() => handleDeleteUser(record)}
+                okText="Delete"
+                okType="danger"
+                cancelText="Cancel"
+              >
+                <Button 
+                  type="text" 
+                  icon={<DeleteOutlined />} 
+                  size="small"
+                  danger
+                />
+              </Popconfirm>
+            </Tooltip>
+          </Space>
+        )
+      },
     },
   ]
-
-  // Apply filters
-  useEffect(() => {
-    handleFilter()
-  }, [searchText, roleFilter, statusFilter])
 
   return (
     <div style={{ padding: '24px' }}>
@@ -413,6 +597,7 @@ const UserManagement: React.FC = () => {
               value={stats.totalUsers}
               prefix={<TeamOutlined style={{ color: '#1890ff' }} />}
               valueStyle={{ color: '#1890ff' }}
+              loading={loading}
             />
           </Card>
         </Col>
@@ -423,6 +608,7 @@ const UserManagement: React.FC = () => {
               value={stats.activeUsers}
               prefix={<UserOutlined style={{ color: '#52c41a' }} />}
               valueStyle={{ color: '#52c41a' }}
+              loading={loading}
             />
           </Card>
         </Col>
@@ -430,19 +616,21 @@ const UserManagement: React.FC = () => {
           <Card>
             <Statistic
               title="Pharmacists"
-              value={stats.pharmacists}
+              value={stats.pharmacistUsers}
               prefix={<SecurityScanOutlined style={{ color: '#722ed1' }} />}
               valueStyle={{ color: '#722ed1' }}
+              loading={loading}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
-              title="Recent Logins"
+              title="Recent Activity"
               value={stats.recentLogins}
               prefix={<CalendarOutlined style={{ color: '#fa541c' }} />}
               valueStyle={{ color: '#fa541c' }}
+              loading={loading}
             />
           </Card>
         </Col>
@@ -451,15 +639,15 @@ const UserManagement: React.FC = () => {
       {/* Quick Actions & Alerts */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col xs={24} md={16}>
-          {stats.suspendedUsers > 0 && (
+          {stats.inactiveUsers > 0 && (
             <Alert
-              message={`${stats.suspendedUsers} user(s) are currently suspended`}
-              description="Review suspended accounts and take appropriate action."
+              message={`${stats.inactiveUsers} user(s) are currently inactive`}
+              description="Review inactive accounts and take appropriate action."
               type="warning"
               showIcon
               action={
-                <Button size="small" onClick={() => setStatusFilter('Suspended')}>
-                  View Suspended
+                <Button size="small" onClick={() => setStatusFilter('Inactive')}>
+                  View Inactive
                 </Button>
               }
               style={{ marginBottom: '16px' }}
@@ -474,8 +662,17 @@ const UserManagement: React.FC = () => {
                 icon={<UserAddOutlined />} 
                 block
                 onClick={() => handleUserModal()}
+                loading={submitting}
               >
                 Add New User
+              </Button>
+              <Button 
+                icon={<ReloadOutlined />} 
+                block
+                onClick={loadUsers}
+                loading={loading}
+              >
+                Refresh Data
               </Button>
               <Button 
                 icon={<ExportOutlined />} 
@@ -530,12 +727,7 @@ const UserManagement: React.FC = () => {
           <Col xs={24} sm={12} md={8}>
             <Button 
               icon={<FilterOutlined />}
-              onClick={() => {
-                setSearchText('')
-                setRoleFilter('all')
-                setStatusFilter('all')
-                setFilteredUsers(users)
-              }}
+              onClick={clearFilters}
             >
               Clear Filters
             </Button>
@@ -548,6 +740,8 @@ const UserManagement: React.FC = () => {
         <Table
           columns={columns}
           dataSource={filteredUsers}
+          rowKey="id"
+          loading={loading}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
@@ -567,18 +761,28 @@ const UserManagement: React.FC = () => {
           </Space>
         }
         open={userModalVisible}
-        onCancel={() => setUserModalVisible(false)}
+        onCancel={() => {
+          setUserModalVisible(false)
+          setSelectedUser(null)
+          form.resetFields()
+        }}
+        confirmLoading={submitting}
         footer={[
-          <Button key="cancel" onClick={() => setUserModalVisible(false)}>
+          <Button 
+            key="cancel" 
+            onClick={() => {
+              setUserModalVisible(false)
+              setSelectedUser(null)
+              form.resetFields()
+            }}
+          >
             Cancel
           </Button>,
           <Button 
             key="submit" 
             type="primary" 
-            onClick={() => {
-              message.success(`User ${isEditing ? 'updated' : 'created'} successfully!`)
-              setUserModalVisible(false)
-            }}
+            loading={submitting}
+            onClick={handleFormSubmit}
           >
             {isEditing ? 'Update' : 'Create'} User
           </Button>,
@@ -588,11 +792,14 @@ const UserManagement: React.FC = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item 
-                label="Full Name" 
-                name="name" 
-                rules={[{ required: true, message: 'Please enter full name' }]}
+                label="Username" 
+                name="username" 
+                rules={[
+                  { required: true, message: 'Please enter username' },
+                  { min: 3, message: 'Username must be at least 3 characters' }
+                ]}
               >
-                <Input placeholder="Enter full name" />
+                <Input placeholder="Enter username" />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -612,9 +819,29 @@ const UserManagement: React.FC = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item 
+                label="First Name" 
+                name="firstName" 
+                rules={[{ required: true, message: 'Please enter first name' }]}
+              >
+                <Input placeholder="Enter first name" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item 
+                label="Last Name" 
+                name="lastName" 
+                rules={[{ required: true, message: 'Please enter last name' }]}
+              >
+                <Input placeholder="Enter last name" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item 
                 label="Phone Number" 
                 name="phone"
-                rules={[{ required: true, message: 'Please enter phone number' }]}
               >
                 <Input placeholder="Enter phone number" />
               </Form.Item>
@@ -622,49 +849,48 @@ const UserManagement: React.FC = () => {
             <Col span={12}>
               <Form.Item 
                 label="Role" 
-                name="role" 
+                name="roleId" 
                 rules={[{ required: true, message: 'Please select role' }]}
               >
                 <Select placeholder="Select user role">
-                  <Option value="ADMIN">Admin</Option>
-                  <Option value="PHARMACIST">Pharmacist</Option>
-                  <Option value="CUSTOMER">Customer</Option>
+                  {roles.map(role => (
+                    <Option key={role.id} value={role.id}>
+                      {role.name}
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
             </Col>
           </Row>
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item label="Department" name="department">
-                <Select placeholder="Select department" allowClear>
-                  <Option value="System Administration">System Administration</Option>
-                  <Option value="Pharmacy Operations">Pharmacy Operations</Option>
-                  <Option value="Customer Service">Customer Service</Option>
-                  <Option value="Finance">Finance</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item 
-                label="Status" 
-                name="status" 
-                rules={[{ required: true, message: 'Please select status' }]}
-              >
-                <Select placeholder="Select status">
-                  <Option value="Active">Active</Option>
-                  <Option value="Inactive">Inactive</Option>
-                  <Option value="Suspended">Suspended</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
+          <Form.Item 
+            label="Address" 
+            name="address"
+          >
+            <Input.TextArea placeholder="Enter address" rows={3} />
+          </Form.Item>
+
+          {isEditing && (
+            <Form.Item 
+              label="Status" 
+              name="isActive" 
+              rules={[{ required: true, message: 'Please select status' }]}
+            >
+              <Select placeholder="Select status">
+                <Option value={true}>Active</Option>
+                <Option value={false}>Inactive</Option>
+              </Select>
+            </Form.Item>
+          )}
 
           {!isEditing && (
             <Form.Item 
               label="Initial Password" 
               name="password" 
-              rules={[{ required: true, message: 'Please enter initial password' }]}
+              rules={[
+                { required: true, message: 'Please enter initial password' },
+                { min: 6, message: 'Password must be at least 6 characters' }
+              ]}
             >
               <Input.Password placeholder="Enter initial password" />
             </Form.Item>
@@ -687,12 +913,14 @@ const UserManagement: React.FC = () => {
           <Button key="close" onClick={() => setViewModalVisible(false)}>
             Close
           </Button>,
-          <Button key="edit" type="primary" onClick={() => {
-            setViewModalVisible(false)
-            handleUserModal(selectedUser)
-          }}>
-            Edit User
-          </Button>,
+          ...(selectedUser && !selectedUser.email.startsWith('walkin_') ? [
+            <Button key="edit" type="primary" onClick={() => {
+              setViewModalVisible(false)
+              handleUserModal(selectedUser || undefined)
+            }}>
+              Edit User
+            </Button>
+          ] : []),
         ]}
       >
         {selectedUser && (
@@ -702,19 +930,38 @@ const UserManagement: React.FC = () => {
                 <Avatar 
                   size={80} 
                   icon={<UserOutlined />} 
-                  src={selectedUser.profilePicture}
-                  style={{ backgroundColor: getAvatarColor(selectedUser.role) }}
+                  style={{ backgroundColor: getAvatarColor(selectedUser.role.name) }}
                 />
               </Col>
               <Col span={20}>
-                <Title level={4}>{selectedUser.name}</Title>
+                <Title level={4}>
+                  {getFullName(selectedUser)}
+                  {selectedUser.email.startsWith('walkin_') && (
+                    <Tag 
+                      color="orange" 
+                      style={{ marginLeft: '8px', fontSize: '12px' }}
+                    >
+                      Walk-in Customer
+                    </Tag>
+                  )}
+                </Title>
                 <Space direction="vertical" size="small">
                   {getRoleDisplay(selectedUser.role)}
-                  {getStatusDisplay(selectedUser.status)}
-                  <Text type="secondary">ID: {selectedUser.id}</Text>
+                  {getStatusDisplay(selectedUser.isActive)}
+                  <Text type="secondary">@{selectedUser.username}</Text>
                 </Space>
               </Col>
             </Row>
+
+            {selectedUser.email.startsWith('walkin_') && (
+              <Alert
+                message="Walk-in Customer"
+                description="This user was automatically created for a walk-in transaction. Walk-in customers cannot be modified or deleted through the admin panel."
+                type="info"
+                showIcon
+                style={{ marginBottom: '16px' }}
+              />
+            )}
 
             <Divider />
 
@@ -728,30 +975,35 @@ const UserManagement: React.FC = () => {
               <Descriptions.Item label="Phone">
                 <Space>
                   <PhoneOutlined />
-                  {selectedUser.phone}
+                  {selectedUser.phone || 'Not provided'}
                 </Space>
               </Descriptions.Item>
-              <Descriptions.Item label="Department">
-                {selectedUser.department || 'Not assigned'}
+              <Descriptions.Item label="Address">
+                {selectedUser.address || 'Not provided'}
               </Descriptions.Item>
-              <Descriptions.Item label="Login Count">
-                <Badge count={selectedUser.loginCount} showZero />
+              <Descriptions.Item label="Role">
+                {selectedUser.role.name}
               </Descriptions.Item>
-              <Descriptions.Item label="Last Login">
-                {new Date(selectedUser.lastLogin).toLocaleString()}
+              <Descriptions.Item label="Account Created">
+                {UserService.formatDate(selectedUser.createdAt, 'Invalid Date')}
               </Descriptions.Item>
-              <Descriptions.Item label="Created">
-                {new Date(selectedUser.createdAt).toLocaleDateString()}
+              <Descriptions.Item label="Last Updated">
+                {UserService.formatDate(selectedUser.updatedAt, 'Invalid Date')}
               </Descriptions.Item>
             </Descriptions>
 
-            <Divider orientation="left">Permissions</Divider>
+            <Divider orientation="left">Account Information</Divider>
             <Space wrap>
-              {selectedUser.permissions.map((permission: string) => (
-                <Tag key={permission} color="blue">
-                  {permission.replace('_', ' ').toUpperCase()}
-                </Tag>
-              ))}
+              <Tag color="blue">User ID: {selectedUser.id}</Tag>
+              <Tag color={selectedUser.isActive ? 'green' : 'red'}>
+                {selectedUser.isActive ? 'Active Account' : 'Inactive Account'}
+              </Tag>
+              <Tag color="purple">
+                {selectedUser.role.description || selectedUser.role.name}
+              </Tag>
+              {selectedUser.email.startsWith('walkin_') && (
+                <Tag color="orange">Walk-in Customer</Tag>
+              )}
             </Space>
           </div>
         )}

@@ -172,6 +172,28 @@ export interface TransformedBill {
   invoiceId?: string
   generatedDate?: string
   paidAmount?: number
+  shippingDetails?: {
+    id: number
+    addressLine1: string
+    addressLine2?: string
+    city: string
+    stateProvince: string
+    postalCode: string
+    country: string
+    recipientName: string
+    contactPhone: string
+    shippingStatus: string
+    trackingNumber?: string
+    trackingUrl?: string
+    estimatedDeliveryDate?: string
+    deliveryNotes?: string
+    orderedAt?: string
+    processedAt?: string
+    shippedAt?: string
+    deliveredAt?: string
+    cancelledAt?: string
+    cancellationReason?: string
+  }
   insurance?: {
     provider: string
     policyNumber: string
@@ -390,6 +412,29 @@ const transformBillData = (apiData: any): TransformedBill => {
     invoiceId: apiData.billNumber, // Use bill number as invoice ID
     generatedDate: convertDate(apiData.createdAt),
     paidAmount: apiData.paymentStatus === 'PAID' ? Number(apiData.totalAmount) || 0 : 0,
+    // Include shipping details if available
+    shippingDetails: apiData.shippingDetails ? {
+      id: apiData.shippingDetails.id,
+      addressLine1: apiData.shippingDetails.addressLine1,
+      addressLine2: apiData.shippingDetails.addressLine2,
+      city: apiData.shippingDetails.city,
+      stateProvince: apiData.shippingDetails.stateProvince,
+      postalCode: apiData.shippingDetails.postalCode,
+      country: apiData.shippingDetails.country,
+      recipientName: apiData.shippingDetails.recipientName,
+      contactPhone: apiData.shippingDetails.contactPhone,
+      shippingStatus: apiData.shippingDetails.shippingStatus,
+      trackingNumber: apiData.shippingDetails.trackingNumber,
+      trackingUrl: apiData.shippingDetails.trackingUrl,
+      estimatedDeliveryDate: apiData.shippingDetails.estimatedDeliveryDate ? convertDate(apiData.shippingDetails.estimatedDeliveryDate) : undefined,
+      deliveryNotes: apiData.shippingDetails.deliveryNotes,
+      orderedAt: apiData.shippingDetails.orderedAt ? convertDate(apiData.shippingDetails.orderedAt) : undefined,
+      processedAt: apiData.shippingDetails.processedAt ? convertDate(apiData.shippingDetails.processedAt) : undefined,
+      shippedAt: apiData.shippingDetails.shippedAt ? convertDate(apiData.shippingDetails.shippedAt) : undefined,
+      deliveredAt: apiData.shippingDetails.deliveredAt ? convertDate(apiData.shippingDetails.deliveredAt) : undefined,
+      cancelledAt: apiData.shippingDetails.cancelledAt ? convertDate(apiData.shippingDetails.cancelledAt) : undefined,
+      cancellationReason: apiData.shippingDetails.cancellationReason
+    } : undefined,
     // Mock insurance data if not provided
     insurance: undefined // Insurance data would need to come from prescription or separate API
   }
@@ -869,6 +914,13 @@ class PharmacistService {
   }
 
   /**
+   * Calculate bill amount for prescription (alias for calculatePrescriptionAmount)
+   */
+  async calculateBillAmount(prescriptionId: string): Promise<number> {
+    return this.calculatePrescriptionAmount(prescriptionId)
+  }
+
+  /**
    * Create or update bill
    */
   async saveBill(billData: any): Promise<any> {
@@ -1070,6 +1122,59 @@ class PharmacistService {
     } catch (error) {
       console.error('Error getting completion details:', error)
       throw new Error('Failed to get completion details')
+    }
+  }
+
+  /**
+   * Print invoice as PDF
+   */
+  async printInvoice(billId: string): Promise<Blob> {
+    try {
+      console.log('Printing invoice for bill ID:', billId)
+      const response = await api.post(`/bills/${billId}/print`, {}, {
+        responseType: 'blob',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      })
+      return response.data
+    } catch (error) {
+      console.error('Error printing invoice:', error)
+      throw new Error('Failed to print invoice')
+    }
+  }
+
+  /**
+   * Download invoice as PDF
+   */
+  async downloadInvoicePDF(billId: string): Promise<Blob> {
+    try {
+      console.log('Downloading invoice PDF for bill ID:', billId)
+      const response = await api.get(`/bills/${billId}/pdf`, {
+        responseType: 'blob',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      })
+      return response.data
+    } catch (error) {
+      console.error('Error downloading invoice PDF:', error)
+      throw new Error('Failed to download invoice PDF')
+    }
+  }
+
+  /**
+   * Email invoice to customer
+   */
+  async emailInvoice(billId: string, emailAddress?: string): Promise<string> {
+    try {
+      console.log('Emailing invoice for bill ID:', billId, 'to:', emailAddress || 'customer email')
+      const params = emailAddress ? { emailAddress } : {}
+      const response = await api.post(`/bills/${billId}/email`, {}, { params })
+      return response.data
+    } catch (error) {
+      console.error('Error emailing invoice:', error)
+      throw new Error('Failed to email invoice')
     }
   }
 }

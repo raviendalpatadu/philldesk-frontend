@@ -1,8 +1,9 @@
 /**
- * Pharmacist Billing Management
+ * Pharmacist Billing Management (SME Pharmacy Streamlined)
  * 
- * This component provides comprehensive billing management functionality for pharmacists,
- * including invoice generation, payment processing, insurance claims, and financial reporting.
+ * This component provides streamlined billing management for small pharmacy operations.
+ * Bills are automatically generated when prescriptions are approved, eliminating invoice complexity.
+ * Focus on direct billing, payment collection, and prescription dispensing.
  */
 
 import React, { useState, useEffect } from 'react'
@@ -29,14 +30,14 @@ import {
   Progress,
   Descriptions,
   Tabs,
-  Spin
+  Spin,
+  Result
 } from 'antd'
 import { 
   PlusOutlined,
   EyeOutlined,
   PrinterOutlined,
   MailOutlined,
-  CreditCardOutlined,
   FileTextOutlined,
   SearchOutlined,
   FilterOutlined,
@@ -44,7 +45,6 @@ import {
   ClockCircleOutlined,
   ExclamationCircleOutlined,
   WarningOutlined,
-  ShoppingCartOutlined,
   PhoneOutlined,
   BarChartOutlined,
   DollarOutlined
@@ -57,6 +57,36 @@ const { RangePicker } = DatePicker
 const { TabPane } = Tabs
 
 const BillingManagement: React.FC = () => {
+  // Utility function to safely convert dates
+  const safeFormatDate = (dateValue: any, format: 'date' | 'datetime' = 'date'): string => {
+    if (!dateValue) return 'Not available'
+    
+    try {
+      // Handle array format dates from backend [year, month, day, hour, minute, second, nanosecond]
+      if (Array.isArray(dateValue)) {
+        const [year, month, day, hour = 0, minute = 0, second = 0] = dateValue
+        const date = new Date(year, month - 1, day, hour, minute, second) // month is 0-indexed
+        return format === 'datetime' ? date.toLocaleString() : date.toLocaleDateString()
+      }
+      
+      // Handle string dates
+      if (typeof dateValue === 'string') {
+        const date = new Date(dateValue)
+        return format === 'datetime' ? date.toLocaleString() : date.toLocaleDateString()
+      }
+      
+      // Handle Date objects
+      if (dateValue instanceof Date) {
+        return format === 'datetime' ? dateValue.toLocaleString() : dateValue.toLocaleDateString()
+      }
+      
+      return 'Invalid date'
+    } catch (error) {
+      console.error('Date conversion error:', error, dateValue)
+      return 'Invalid date'
+    }
+  }
+
   // Payment methods - could be fetched from backend in the future
   const paymentMethods = [
     { value: 'CASH', label: 'Cash' },
@@ -69,19 +99,17 @@ const BillingManagement: React.FC = () => {
 
   // State for bills and UI
   const [pendingBills, setPendingBills] = useState<TransformedBill[]>([])
-  const [generatedInvoices, setGeneratedInvoices] = useState<TransformedBill[]>([])
+  const [paidBills, setPaidBills] = useState<TransformedBill[]>([])
   const [readyForPickup, setReadyForPickup] = useState<any[]>([])
   const [filteredBills, setFilteredBills] = useState<TransformedBill[]>([])
   const [selectedBill, setSelectedBill] = useState<TransformedBill | null>(null)
-  const [selectedPickup, setSelectedPickup] = useState<any | null>(null)
-  const [billingModalVisible, setBillingModalVisible] = useState(false)
+  const [selectedPickup, setSelectedPickup] = useState<any>(null)
   const [paymentModalVisible, setPaymentModalVisible] = useState(false)
   const [pickupBillModalVisible, setPickupBillModalVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [activeTab, setActiveTab] = useState('pending')
   const [loading, setLoading] = useState(false)
-  const [form] = Form.useForm()
   const [paymentForm] = Form.useForm()
   const [pickupPaymentForm] = Form.useForm()
 
@@ -107,43 +135,38 @@ const BillingManagement: React.FC = () => {
       console.log('Paid bills:', paidResponse)
       console.log('Ready for pickup:', pickupResponse)
 
+      // Debug: Check if paid bills have shipping details
+      if (paidResponse && paidResponse.length > 0) {
+        console.log('First paid bill with details:', JSON.stringify(paidResponse[0], null, 2))
+        paidResponse.forEach((bill: any, index: number) => {
+          if (bill.shippingDetails) {
+            console.log(`Paid bill ${index} has shipping details:`, bill.shippingDetails)
+          } else {
+            console.log(`Paid bill ${index} has NO shipping details`)
+          }
+        })
+      }
+
       // Set pending bills (empty array if no data)
       const pendingData = pendingResponse || []
       setPendingBills(pendingData)
       setFilteredBills(pendingData)
-      
-      if (pendingData.length > 0) {
-        message.success(`Loaded ${pendingData.length} pending bills from backend`)
-      } else {
-        message.info('No pending bills found')
-      }
 
-      // Set paid bills/invoices (empty array if no data)
-      const invoiceData = paidResponse || []
-      setGeneratedInvoices(invoiceData)
-      
-      if (invoiceData.length > 0) {
-        message.success(`Loaded ${invoiceData.length} invoices from backend`)
-      } else {
-        message.info('No invoices found')
-      }
+      // Set paid bills (empty array if no data)
+      const paidBillsData = paidResponse || []
+      setPaidBills(paidBillsData)
 
       // Set ready-for-pickup prescriptions
       const pickupData = pickupResponse || []
       setReadyForPickup(pickupData)
       
-      if (pickupData.length > 0) {
-        message.success(`Loaded ${pickupData.length} prescriptions ready for pickup`)
-      } else {
-        message.info('No prescriptions ready for pickup')
-      }
     } catch (error) {
       console.error('Failed to load billing data:', error)
       message.error('Failed to load billing data from backend')
       // Set empty arrays instead of mock data
       setPendingBills([])
       setFilteredBills([])
-      setGeneratedInvoices([])
+      setPaidBills([])
     } finally {
       setLoading(false)
     }
@@ -195,10 +218,10 @@ const BillingManagement: React.FC = () => {
     readyForBilling: pendingBills.filter(bill => bill.status === 'Ready for Billing').length,
     insuranceVerification: pendingBills.filter(bill => bill.status === 'Insurance Verification').length,
     readyForPickup: readyForPickup.length,
-    totalInvoices: generatedInvoices.length,
-    paidInvoices: generatedInvoices.filter(inv => inv.status === 'Paid').length,
-    totalRevenue: generatedInvoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0),
-    pendingPayments: generatedInvoices.reduce((sum, inv) => sum + ((inv.amount || inv.totalAmount || 0) - (inv.paidAmount || 0)), 0)
+    totalPaidBills: paidBills.length,
+    paidBillsCount: paidBills.filter((bill: TransformedBill) => bill.status === 'Paid').length,
+    totalRevenue: paidBills.reduce((sum: number, bill: TransformedBill) => sum + (bill.paidAmount || 0), 0),
+    pendingPayments: paidBills.reduce((sum: number, bill: TransformedBill) => sum + ((bill.amount || bill.totalAmount || 0) - (bill.paidAmount || 0)), 0)
   }
 
   // Filter pending bills
@@ -245,85 +268,13 @@ const BillingManagement: React.FC = () => {
     }
   }
 
-  // Generate bill/invoice
-  const generateBill = async (bill: any) => {
-    try {
-      setLoading(true)
-      console.log('Generating bill for prescription:', bill.prescriptionId || bill.id)
-
-      // If we have a prescription ID, generate bill from prescription
-      if (bill.prescriptionId || bill.id) {
-        const prescriptionId = bill.prescriptionId || bill.id
-        const generatedBill = await pharmacistService.generateBillFromPrescription(prescriptionId.toString())
-        
-        console.log('Bill generated successfully:', generatedBill)
-        message.success('Bill generated successfully!')
-        
-        // Refresh billing data
-        await loadBillingData()
-        
-        // Show the generated bill details
-        setSelectedBill(generatedBill)
-        setBillingModalVisible(true)
-      } else {
-        // Fallback to manual billing modal
-        setSelectedBill(bill)
-        setBillingModalVisible(true)
-        form.setFieldsValue({
-          orderId: bill.orderId || bill.id,
-          customerName: bill.customerName || 'Unknown Customer',
-          subtotal: bill.subtotal || bill.totalAmount || 0,
-          tax: bill.tax || 0,
-          shipping: bill.shipping || 0,
-          discount: bill.discount || 0,
-          total: bill.total || bill.totalAmount || 0,
-          dueDate: null,
-          paymentTerms: 'Net 15',
-          notes: ''
-        })
-      }
-    } catch (error) {
-      console.error('Error generating bill:', error)
-      message.error('Failed to generate bill. Please try again.')
-      
-      // Fallback to manual billing
-      setSelectedBill(bill)
-      setBillingModalVisible(true)
-      form.setFieldsValue({
-        orderId: bill.orderId || bill.id,
-        customerName: bill.customerName || 'Unknown Customer',
-        subtotal: bill.subtotal || bill.totalAmount || 0,
-        tax: bill.tax || 0,
-        shipping: bill.shipping || 0,
-        discount: bill.discount || 0,
-        total: bill.total || bill.totalAmount || 0,
-        dueDate: null,
-        paymentTerms: 'Net 15',
-        notes: ''
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Process payment
-  const processPayment = async (invoice: any) => {
-    try {
-      setSelectedBill(invoice)
-      setPaymentModalVisible(true)
-    } catch (error) {
-      console.error('Error processing payment:', error)
-      message.error('Failed to open payment modal')
-    }
-  }
-
   // Handle payment processing
   const handlePaymentSubmit = async (paymentData: any) => {
     try {
       setLoading(true)
       console.log('Processing payment:', paymentData)
 
-      const billId = selectedBill?.id || selectedBill?.invoiceId
+      const billId = selectedBill?.id
       if (billId && selectedBill) {
         await pharmacistService.markBillAsPaid(billId.toString(), paymentData.paymentMethod)
         message.success('Payment processed successfully!')
@@ -342,12 +293,104 @@ const BillingManagement: React.FC = () => {
     }
   }
 
-  // View invoice details - can be used for both regular bills and pickup bills
-  const viewInvoiceDetails = (invoice: any) => {
-    setSelectedBill(invoice)
+  // Print bill functionality
+  const printBill = async (bill: any) => {
+    try {
+      setLoading(true)
+      console.log('Printing bill for:', bill.id || bill.billId)
+      
+      const billId = bill.id || bill.billId
+      if (!billId) {
+        message.error('Bill ID not found')
+        return
+      }
+
+      const pdfBlob = await pharmacistService.printInvoice(billId.toString())
+      
+      // Create a URL for the PDF blob and open in new window for printing
+      const pdfUrl = URL.createObjectURL(pdfBlob)
+      const printWindow = window.open(pdfUrl, '_blank')
+      
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print()
+          // Clean up the URL after printing
+          setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000)
+        }
+        message.success('Bill opened for printing!')
+      } else {
+        message.error('Popup blocked. Please allow popups and try again.')
+      }
+    } catch (error) {
+      console.error('Error printing bill:', error)
+      message.error('Failed to print bill. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Email bill functionality
+  const emailBill = async (bill: any, customEmail?: string) => {
+    try {
+      setLoading(true)
+      console.log('Emailing bill for:', bill.id || bill.billId)
+      
+      const billId = bill.id || bill.billId
+      if (!billId) {
+        message.error('Bill ID not found')
+        return
+      }
+
+      const result = await pharmacistService.emailInvoice(billId.toString(), customEmail)
+      message.success('Bill emailed successfully!')
+      console.log('Email result:', result)
+    } catch (error) {
+      console.error('Error emailing bill:', error)
+      message.error('Failed to email bill. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Download bill PDF
+  const downloadBillPDF = async (bill: any) => {
+    try {
+      setLoading(true)
+      console.log('Downloading bill PDF for:', bill.id || bill.billId)
+      
+      const billId = bill.id || bill.billId
+      if (!billId) {
+        message.error('Bill ID not found')
+        return
+      }
+
+      const pdfBlob = await pharmacistService.downloadInvoicePDF(billId.toString())
+      
+      // Create download link
+      const url = URL.createObjectURL(pdfBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `bill-${bill.billNumber || bill.billId || billId}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+      message.success('Bill PDF downloaded!')
+    } catch (error) {
+      console.error('Error downloading bill PDF:', error)
+      message.error('Failed to download bill PDF. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // View bill details - can be used for both regular bills and pickup bills
+  const viewBillDetails = (bill: any) => {
+    setSelectedBill(bill)
     // Check if this is a pickup prescription vs regular bill
-    if (invoice.status === 'READY_FOR_PICKUP' || invoice.prescriptionNumber) {
-      setSelectedPickup(invoice)
+    if (bill.status === 'READY_FOR_PICKUP' || bill.prescriptionNumber) {
+      setSelectedPickup(bill)
       setPickupBillModalVisible(true)
     } else {
       setPickupBillModalVisible(true) // Use same modal for consistency
@@ -383,9 +426,6 @@ const BillingManagement: React.FC = () => {
       render: (_: any, record: any) => (
         <Space direction="vertical" size="small">
           <Text strong>{record.prescriptionNumber || `RX-${record.id}`}</Text>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            Customer: {record.customer?.firstName} {record.customer?.lastName}
-          </Text>
           <Text type="secondary" style={{ fontSize: '12px' }}>
             Doctor: {record.doctorName || 'Not specified'}
           </Text>
@@ -424,7 +464,7 @@ const BillingManagement: React.FC = () => {
       width: 120,
       render: (_: any, record: any) => (
         <Text type="secondary">
-          {record.approvedAt ? new Date(record.approvedAt).toLocaleDateString() : 'Unknown'}
+          {safeFormatDate(record.approvedAt, 'datetime')}
         </Text>
       ),
     },
@@ -474,7 +514,7 @@ const BillingManagement: React.FC = () => {
              'No Prescription'}
           </Text>
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            {record.orderDate ? new Date(record.orderDate).toLocaleDateString() : 'No date'}
+            {safeFormatDate(record.orderDate, 'datetime')}
           </Text>
         </Space>
       ),
@@ -511,20 +551,20 @@ const BillingManagement: React.FC = () => {
       sorter: (a: TransformedBill, b: TransformedBill) => (a.total || a.totalAmount || 0) - (b.total || b.totalAmount || 0),
       render: (_: any, record: TransformedBill) => (
         <Space direction="vertical" size="small">
-          <Text strong>${(record.total || record.totalAmount || 0).toFixed(2)}</Text>
+          <Text strong>Rs. {(record.total || record.totalAmount || 0).toFixed(2)}</Text>
           {record.subtotal > 0 && (
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              Subtotal: ${record.subtotal.toFixed(2)}
+              Subtotal: Rs. {record.subtotal.toFixed(2)}
             </Text>
           )}
           {record.discount > 0 && (
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              Discount: -${record.discount.toFixed(2)}
+              Discount: -Rs. {record.discount.toFixed(2)}
             </Text>
           )}
           {record.tax > 0 && (
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              Tax: +${record.tax.toFixed(2)}
+              Tax: +Rs. {record.tax.toFixed(2)}
             </Text>
           )}
         </Space>
@@ -547,6 +587,9 @@ const BillingManagement: React.FC = () => {
           {record.paymentType === 'ONLINE' && (
             <Tag color="blue">Online Payment</Tag>
           )}
+          {record.shippingDetails && (
+            <Tag color="purple">Home Delivery</Tag>
+          )}
         </Space>
       ),
     },
@@ -562,7 +605,7 @@ const BillingManagement: React.FC = () => {
                 type="text" 
                 icon={<EyeOutlined />} 
                 size="small"
-                onClick={() => viewInvoiceDetails(record)}
+                onClick={() => viewBillDetails(record)}
               />
             </Tooltip>
             
@@ -571,39 +614,29 @@ const BillingManagement: React.FC = () => {
                 type="text" 
                 icon={<PrinterOutlined />} 
                 size="small"
-                onClick={() => message.success('Printing...')}
+                onClick={() => printBill(record)}
               />
             </Tooltip>
           </Space>
-          
-          {record.status === 'Ready for Billing' && (
-            <Button 
-              type="primary" 
-              size="small"
-              onClick={() => generateBill(record)}
-            >
-              Generate Invoice
-            </Button>
-          )}
         </Space>
       ),
     },
   ]
 
-  // Generated invoices columns
-  const invoicesColumns = [
+  // Generated bills columns
+  const billsColumns = [
     {
-      title: 'Invoice',
-      key: 'invoice',
+      title: 'Bill',
+      key: 'bill',
       width: 150,
       render: (_: any, record: TransformedBill) => (
         <Space direction="vertical" size="small">
-          <Text strong>{record.invoiceId || record.billNumber}</Text>
+          <Text strong>{record.billNumber}</Text>
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            {record.orderId}
+            {record.prescriptionNumber}
           </Text>
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            {new Date(record.generatedDate || record.createdAt).toLocaleDateString()}
+            {safeFormatDate(record.generatedDate || record.createdAt, 'datetime')}
           </Text>
         </Space>
       ),
@@ -623,9 +656,9 @@ const BillingManagement: React.FC = () => {
         const paidAmount = record.paidAmount || 0
         return (
           <Space direction="vertical" size="small">
-            <Text strong>${amount.toFixed(2)}</Text>
+            <Text strong>Rs. {amount.toFixed(2)}</Text>
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              Paid: ${paidAmount.toFixed(2)}
+              Paid: Rs. {paidAmount.toFixed(2)}
             </Text>
             {amount > paidAmount && (
               <Progress
@@ -639,14 +672,15 @@ const BillingManagement: React.FC = () => {
       },
     },
     {
-      title: 'Due Date',
-      key: 'dueDate',
+      title: 'Paid At',
+      key: 'paidAt',
       width: 100,
       render: (_: any, record: TransformedBill) => {
-        // Calculate due date as 30 days from creation if not provided
-        const dueDate = new Date(record.createdAt)
-        dueDate.setDate(dueDate.getDate() + 30)
-        return dueDate.toLocaleDateString()
+        return (
+          <Text type="secondary">
+            {safeFormatDate(record.paidAt, 'datetime')}
+          </Text>
+        )
       },
     },
     {
@@ -654,7 +688,29 @@ const BillingManagement: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 120,
-      render: (status: string) => getStatusDisplay(status),
+      render: (status: string, record: TransformedBill) => {
+        // Debug: Log shipping details for each record
+        console.log(`Bill ${record.id} details:`, {
+          hasShipping: !!record.shippingDetails,
+          shippingDetails: record.shippingDetails,
+          paymentType: record.paymentType,
+          paidAt: record.paidAt,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt
+        })
+        
+        return (
+          <Space direction="vertical" size="small">
+            {getStatusDisplay(status)}
+            {record.paymentType === 'ONLINE' && (
+              <Tag color="blue">Online Payment</Tag>
+            )}
+            {record.shippingDetails && (
+              <Tag color="purple">Home Delivery</Tag>
+            )}
+          </Space>
+        )
+      },
     },
     {
       title: 'Actions',
@@ -667,16 +723,16 @@ const BillingManagement: React.FC = () => {
               type="text" 
               icon={<EyeOutlined />} 
               size="small"
-              onClick={() => viewInvoiceDetails(record)}
+              onClick={() => viewBillDetails(record)}
             />
           </Tooltip>
           
-          <Tooltip title="Print Invoice">
+          <Tooltip title="Print Bill">
             <Button 
               type="text" 
               icon={<PrinterOutlined />} 
               size="small"
-              onClick={() => message.success('Invoice printed!')}
+              onClick={() => printBill(record)}
             />
           </Tooltip>
           
@@ -685,13 +741,27 @@ const BillingManagement: React.FC = () => {
               type="text" 
               icon={<MailOutlined />} 
               size="small"
-              onClick={() => message.success('Invoice emailed!')}
+              onClick={() => emailBill(record)}
             />
           </Tooltip>
         </Space>
       ),
     },
   ]
+
+  // Helper function to check if payment is pending
+  const isPaymentPending = (pickup: any) => {
+    if (!pickup) return false
+    
+    // Check if payment status is explicitly set to PAID
+    if (pickup.paymentStatus === 'PAID') return false
+    
+    // Check if full amount has been paid
+    const totalAmount = pickup.totalAmount || 0
+    const paidAmount = pickup.paidAmount || 0
+    
+    return paidAmount < totalAmount
+  }
 
   // Apply filters
   useEffect(() => {
@@ -704,11 +774,11 @@ const BillingManagement: React.FC = () => {
         {/* Header */}
         <div style={{ marginBottom: '24px' }}>
           <Title level={2}>
-            <ShoppingCartOutlined style={{ marginRight: '8px' }} />
-            Billing Management
+            <DollarOutlined style={{ marginRight: '8px' }} />
+            Prescription Billing
           </Title>
         <Text type="secondary">
-          Generate invoices, process payments, and manage billing operations
+          Manage prescription bills, collect payments, and process dispensing for approved prescriptions
         </Text>
       </div>
 
@@ -739,7 +809,7 @@ const BillingManagement: React.FC = () => {
             <Statistic
               title="Total Revenue"
               value={stats.totalRevenue}
-              prefix="$"
+              prefix="Rs. "
               precision={2}
               valueStyle={{ color: '#722ed1' }}
             />
@@ -750,7 +820,7 @@ const BillingManagement: React.FC = () => {
             <Statistic
               title="Pending Payments"
               value={stats.pendingPayments}
-              prefix="$"
+              prefix="Rs. "
               precision={2}
               valueStyle={{ color: '#fa541c' }}
             />
@@ -760,51 +830,6 @@ const BillingManagement: React.FC = () => {
 
       {/* Quick Actions */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} md={16}>
-          {stats.readyForBilling > 0 && (
-            <Alert
-              message={`${stats.readyForBilling} orders are ready for billing`}
-              description="Generate invoices for completed orders."
-              type="success"
-              showIcon
-              action={
-                <Button size="small" type="primary" onClick={() => setActiveTab('pending')}>
-                  View Orders
-                </Button>
-              }
-              style={{ marginBottom: '16px' }}
-            />
-          )}
-
-          {stats.readyForPickup > 0 && (
-            <Alert
-              message={`${stats.readyForPickup} prescriptions ready for pickup`}
-              description="Customers are waiting to collect their medications and pay."
-              type="info"
-              showIcon
-              action={
-                <Button size="small" type="primary" onClick={() => setActiveTab('pickup')}>
-                  View Pickups
-                </Button>
-              }
-              style={{ marginBottom: '16px' }}
-            />
-          )}
-          
-          {stats.insuranceVerification > 0 && (
-            <Alert
-              message={`${stats.insuranceVerification} orders awaiting insurance verification`}
-              description="Complete insurance verification to proceed with billing."
-              type="warning"
-              showIcon
-              action={
-                <Button size="small" onClick={() => setStatusFilter('Insurance Verification')}>
-                  Review Insurance
-                </Button>
-              }
-            />
-          )}
-        </Col>
         <Col xs={24} md={8}>
           <Card>
             <Space direction="vertical" style={{ width: '100%' }}>
@@ -816,13 +841,7 @@ const BillingManagement: React.FC = () => {
               >
                 Create Manual Bill
               </Button>
-              <Button 
-                icon={<BarChartOutlined />} 
-                block
-                onClick={() => message.info('Generate financial reports')}
-              >
-                Financial Reports
-              </Button>
+              
             </Space>
           </Card>
         </Col>
@@ -907,15 +926,15 @@ const BillingManagement: React.FC = () => {
             />
           </TabPane>
           
-          <TabPane tab={`Generated Invoices (${stats.totalInvoices})`} key="invoices">
+          <TabPane tab={`Generated Bills (${stats.paidBillsCount})`} key="invoices">
             <Table
-              columns={invoicesColumns}
-              dataSource={generatedInvoices}
+              columns={billsColumns}
+              dataSource={paidBills}
               rowKey="id"
               pagination={{
                 pageSize: 10,
                 showSizeChanger: true,
-                showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} invoices`,
+                showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} bills`,
               }}
               scroll={{ x: 1000 }}
               size="middle"
@@ -923,128 +942,6 @@ const BillingManagement: React.FC = () => {
           </TabPane>
         </Tabs>
       </Card>
-
-      {/* Generate Bill Modal */}
-      <Modal
-        title={
-          <Space>
-            <FileTextOutlined />
-            Generate Invoice - {selectedBill?.orderId}
-          </Space>
-        }
-        open={billingModalVisible}
-        onCancel={() => setBillingModalVisible(false)}
-        width={800}
-        footer={[
-          <Button key="cancel" onClick={() => setBillingModalVisible(false)}>
-            Cancel
-          </Button>,
-          <Button key="save-draft" onClick={() => message.success('Invoice saved as draft!')}>
-            Save Draft
-          </Button>,
-          <Button 
-            key="generate" 
-            type="primary" 
-            onClick={() => {
-              message.success('Invoice generated successfully!')
-              setBillingModalVisible(false)
-            }}
-          >
-            Generate & Send
-          </Button>,
-        ]}
-      >
-        {selectedBill && (
-          <Form form={form} layout="vertical">
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item label="Order ID" name="orderId">
-                  <Input disabled />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item label="Customer" name="customerName">
-                  <Input disabled />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Divider orientation="left">Billing Details</Divider>
-            
-            <Row gutter={16}>
-              <Col span={6}>
-                <Form.Item label="Subtotal" name="subtotal">
-                  <InputNumber
-                    prefix="$"
-                    style={{ width: '100%' }}
-                    precision={2}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={6}>
-                <Form.Item label="Tax" name="tax">
-                  <InputNumber
-                    prefix="$"
-                    style={{ width: '100%' }}
-                    precision={2}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={6}>
-                <Form.Item label="Shipping" name="shipping">
-                  <InputNumber
-                    prefix="$"
-                    style={{ width: '100%' }}
-                    precision={2}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={6}>
-                <Form.Item label="Discount" name="discount">
-                  <InputNumber
-                    prefix="$"
-                    style={{ width: '100%' }}
-                    precision={2}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item label="Due Date" name="dueDate">
-                  <DatePicker style={{ width: '100%' }} />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item label="Payment Terms" name="paymentTerms">
-                  <Select>
-                    <Option value="Net 15">Net 15</Option>
-                    <Option value="Net 30">Net 30</Option>
-                    <Option value="Due on Receipt">Due on Receipt</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Form.Item label="Notes" name="notes">
-              <Input.TextArea rows={3} placeholder="Additional notes for the invoice..." />
-            </Form.Item>
-
-            {selectedBill.insurance && (
-              <>
-                <Divider orientation="left">Insurance Information</Divider>
-                <Descriptions column={2} size="small">
-                  <Descriptions.Item label="Provider">{selectedBill.insurance.provider}</Descriptions.Item>
-                  <Descriptions.Item label="Policy Number">{selectedBill.insurance.policyNumber}</Descriptions.Item>
-                  <Descriptions.Item label="Coverage">{selectedBill.insurance.coverage}%</Descriptions.Item>
-                  <Descriptions.Item label="Estimated Coverage">${selectedBill.insurance.estimatedCoverage.toFixed(2)}</Descriptions.Item>
-                </Descriptions>
-              </>
-            )}
-          </Form>
-        )}
-      </Modal>
 
       {/* Payment Processing Modal */}
       <Modal
@@ -1061,7 +958,7 @@ const BillingManagement: React.FC = () => {
         {selectedBill && (
           <div>
             <Alert
-              message={`Amount Due: $${((selectedBill.amount || selectedBill.totalAmount || 0) - (selectedBill.paidAmount || 0)).toFixed(2)}`}
+              message={`Amount Due: Rs. ${((selectedBill.amount || selectedBill.totalAmount || 0) - (selectedBill.paidAmount || 0)).toFixed(2)}`}
               type="info"
               style={{ marginBottom: '16px' }}
             />
@@ -1069,7 +966,7 @@ const BillingManagement: React.FC = () => {
             <Form layout="vertical" form={paymentForm}>
               <Form.Item label="Payment Amount" name="amount" required>
                 <InputNumber
-                  prefix="$"
+                  prefix="Rs. "
                   style={{ width: '100%' }}
                   precision={2}
                   max={(selectedBill.amount || selectedBill.totalAmount || 0) - (selectedBill.paidAmount || 0)}
@@ -1098,7 +995,7 @@ const BillingManagement: React.FC = () => {
         )}
       </Modal>
 
-      {/* Combined Pickup Bill & Payment Modal */}
+      {/* Bill Details & Payment Collection Modal */}
       <Modal
         title={
           <Space>
@@ -1113,19 +1010,22 @@ const BillingManagement: React.FC = () => {
           <Button key="close" onClick={() => setPickupBillModalVisible(false)}>
             Close
           </Button>,
-          <Button key="print" icon={<PrinterOutlined />} onClick={() => message.success('Bill printed!')}>
+          <Button key="print" icon={<PrinterOutlined />} onClick={() => selectedPickup && printBill(selectedPickup)}>
             Print Bill
           </Button>,
-          <Button 
-            key="collect" 
-            type="primary" 
-            icon={<DollarOutlined />}
-            loading={loading}
-            onClick={() => pickupPaymentForm.submit()}
-            disabled={!selectedPickup}
-          >
-            Collect Payment
-          </Button>,
+          // Only show payment collection button if payment is pending
+          ...(isPaymentPending(selectedPickup) ? [
+            <Button 
+              key="collect" 
+              type="primary" 
+              icon={<DollarOutlined />}
+              loading={loading}
+              onClick={() => pickupPaymentForm.submit()}
+              disabled={!selectedPickup}
+            >
+              Collect Payment
+            </Button>
+          ] : [])
         ]}
       >
         {(selectedBill || selectedPickup) && (
@@ -1161,15 +1061,30 @@ const BillingManagement: React.FC = () => {
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item label="Payment Type">
-                      <Tag color="orange">Pay on Pickup</Tag>
+                      {selectedPickup?.paymentType ? (
+                        <Space>
+                          <Tag color="blue">{selectedPickup.paymentType}</Tag>
+                          {selectedPickup.shippingDetails && (
+                            <Tag color="purple">Home Delivery</Tag>
+                          )}
+                        </Space>
+                      ) : (
+                        <Tag color="red">Not Specified</Tag>
+                      )}
                     </Descriptions.Item>
-                    <Descriptions.Item label="Status">
-                      <Tag color="orange" icon={<ClockCircleOutlined />}>
-                        Ready for Pickup
-                      </Tag>
+                    <Descriptions.Item label="Payment Status">
+                      {!isPaymentPending(selectedPickup) ? (
+                        <Tag color="green" icon={<CheckCircleOutlined />}>
+                          Payment Completed
+                        </Tag>
+                      ) : (
+                        <Tag color="orange" icon={<ClockCircleOutlined />}>
+                          Payment Pending           
+                        </Tag>
+                      )}
                     </Descriptions.Item>
                     <Descriptions.Item label="Ready Since">
-                      {selectedPickup?.approvedAt ? new Date(selectedPickup.approvedAt).toLocaleDateString() : 'Unknown'}
+                      {safeFormatDate(selectedPickup?.approvedAt)}
                     </Descriptions.Item>
                   </Descriptions>
                 </Col>
@@ -1230,67 +1145,170 @@ const BillingManagement: React.FC = () => {
               </Card>
             )}
 
-            {/* Payment Collection Section */}
-            <Card 
-              title="Payment Collection" 
-              size="small"
-            >
-              <Alert
-                message="Ready to Collect Payment"
-                description="Select payment method and collect payment from customer. This will mark the prescription as dispensed."
-                type="info"
+            {/* Shipping Details Section */}
+            {selectedPickup?.shippingDetails && (
+              <Card 
+                title="Shipping & Delivery Information" 
+                size="small" 
                 style={{ marginBottom: '16px' }}
-              />
-              
-              <Form 
-                layout="vertical" 
-                form={pickupPaymentForm}
-                onFinish={handlePickupPaymentSubmit}
               >
                 <Row gutter={16}>
                   <Col span={12}>
-                    <Form.Item 
-                      label="Payment Method" 
-                      name="paymentMethod" 
-                      rules={[{ required: true, message: 'Please select a payment method' }]}
-                      initialValue="CASH"
-                    >
-                      <Select placeholder="Select payment method" size="large">
-                        <Option value="CASH">💰 Cash</Option>
-                        <Option value="CARD">💳 Card (Debit/Credit)</Option>
-                        <Option value="BANK_TRANSFER">🏦 Bank Transfer</Option>
-                        <Option value="OTHER">📝 Other</Option>
-                      </Select>
-                    </Form.Item>
+                    <Descriptions column={1} size="small">
+                      <Descriptions.Item label="Delivery Address">
+                        <Space direction="vertical" size="small">
+                          <Text>{selectedPickup.shippingDetails.addressLine1}</Text>
+                          {selectedPickup.shippingDetails.addressLine2 && (
+                            <Text type="secondary">{selectedPickup.shippingDetails.addressLine2}</Text>
+                          )}
+                          <Text>{selectedPickup.shippingDetails.city}, {selectedPickup.shippingDetails.stateProvince}</Text>
+                          <Text>{selectedPickup.shippingDetails.postalCode}</Text>
+                          <Text>{selectedPickup.shippingDetails.country}</Text>
+                        </Space>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Contact Person">
+                        {selectedPickup.shippingDetails.recipientName || selectedPickup.customerName}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Contact Phone">
+                        {selectedPickup.shippingDetails.contactPhone || selectedPickup.customerPhone}
+                      </Descriptions.Item>
+                    </Descriptions>
                   </Col>
                   <Col span={12}>
-                    <Form.Item label="Amount to Collect">
-                      <Input 
-                        size="large"
-                        value={`Rs. ${selectedPickup?.totalAmount?.toFixed(2) || '0.00'}`}
-                        disabled
-                        style={{ fontWeight: 'bold', fontSize: '16px' }}
-                      />
-                    </Form.Item>
+                    <Descriptions column={1} size="small">
+                      <Descriptions.Item label="Shipping Status">
+                        {selectedPickup.shippingDetails.shippingStatus === 'PENDING' && (
+                          <Tag color="orange" icon={<ClockCircleOutlined />}>Pending Shipment</Tag>
+                        )}
+                        {selectedPickup.shippingDetails.shippingStatus === 'PROCESSING' && (
+                          <Tag color="blue" icon={<ClockCircleOutlined />}>Processing</Tag>
+                        )}
+                        {selectedPickup.shippingDetails.shippingStatus === 'SHIPPED' && (
+                          <Tag color="green" icon={<CheckCircleOutlined />}>Shipped</Tag>
+                        )}
+                        {selectedPickup.shippingDetails.shippingStatus === 'DELIVERED' && (
+                          <Tag color="green" icon={<CheckCircleOutlined />}>Delivered</Tag>
+                        )}
+                        {selectedPickup.shippingDetails.shippingStatus === 'CANCELLED' && (
+                          <Tag color="red">Cancelled</Tag>
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Tracking Number">
+                        {selectedPickup.shippingDetails.trackingNumber ? (
+                          <Text copyable style={{ color: '#1890ff' }}>
+                            {selectedPickup.shippingDetails.trackingNumber}
+                          </Text>
+                        ) : (
+                          <Text type="secondary">Not generated yet</Text>
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Estimated Delivery">
+                        {safeFormatDate(selectedPickup.shippingDetails.estimatedDeliveryDate)}
+                      </Descriptions.Item>
+                      {selectedPickup.shippingDetails.deliveryNotes && (
+                        <Descriptions.Item label="Delivery Notes">
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            {selectedPickup.shippingDetails.deliveryNotes}
+                          </Text>
+                        </Descriptions.Item>
+                      )}
+                    </Descriptions>
                   </Col>
                 </Row>
-                
-                <Form.Item label="Notes (Optional)" name="notes">
-                  <Input.TextArea 
-                    rows={2} 
-                    placeholder="Add any notes about the payment collection..."
-                  />
-                </Form.Item>
-              </Form>
+              </Card>
+            )}
 
-              <Alert
-                message="⚠️ Important"
-                description="After collecting payment, the prescription will be marked as DISPENSED and the customer will receive their medication. This action cannot be undone."
-                type="warning"
-                showIcon
-                style={{ marginTop: '16px' }}
-              />
-            </Card>
+            {/* Payment Collection Section */}
+            {isPaymentPending(selectedPickup) ? (
+              <Card 
+                title="Payment Collection" 
+                size="small"
+              >
+                <Alert
+                  message="Ready to Collect Payment"
+                  description="Select payment method and collect payment from customer. This will mark the prescription as dispensed."
+                  type="info"
+                  style={{ marginBottom: '16px' }}
+                />
+                
+                <Form 
+                  layout="vertical" 
+                  form={pickupPaymentForm}
+                  onFinish={handlePickupPaymentSubmit}
+                >
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item 
+                        label="Payment Method" 
+                        name="paymentMethod" 
+                        rules={[{ required: true, message: 'Please select a payment method' }]}
+                        initialValue="CASH"
+                      >
+                        <Select placeholder="Select payment method" size="large">
+                          <Option value="CASH">💰 Cash</Option>
+                          <Option value="CARD">💳 Card (Debit/Credit)</Option>
+                          <Option value="BANK_TRANSFER">🏦 Bank Transfer</Option>
+                          <Option value="OTHER">📝 Other</Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item label="Amount to Collect">
+                        <Input 
+                          size="large"
+                          value={`Rs. ${selectedPickup?.totalAmount?.toFixed(2) || '0.00'}`}
+                          disabled
+                          style={{ fontWeight: 'bold', fontSize: '16px' }}
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  
+                  <Form.Item label="Notes (Optional)" name="notes">
+                    <Input.TextArea 
+                      rows={2} 
+                      placeholder="Add any notes about the payment collection..."
+                    />
+                  </Form.Item>
+                </Form>
+
+                <Alert
+                  message="Important"
+                  description="After collecting payment, the prescription will be marked as DISPENSED and the customer will receive their medication. This action cannot be undone."
+                  type="warning"
+                  showIcon
+                  style={{ marginTop: '16px' }}
+                />
+              </Card>
+            ) : (
+              <Card 
+                title="Payment Status" 
+                size="small"
+              >
+                <Result
+                  status="success"
+                  title="Payment Already Completed"
+                  subTitle="This prescription has already been paid for. No further payment collection is required."
+                  extra={[
+                    <div key="payment-info" style={{ textAlign: 'left', marginTop: '16px' }}>
+                      <Descriptions column={1} size="small" bordered>
+                        <Descriptions.Item label="Amount Paid">
+                          <Text strong style={{ color: '#52c41a' }}>
+                            Rs. {selectedPickup?.paidAmount?.toFixed(2) || selectedPickup?.totalAmount?.toFixed(2) || '0.00'}
+                          </Text>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Payment Date">
+                          {safeFormatDate(selectedPickup?.paidAt)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Payment Method">
+                          {selectedPickup?.paymentMethod || 'Not specified'}
+                        </Descriptions.Item>
+                      </Descriptions>
+                    </div>
+                  ]}
+                />
+              </Card>
+            )}
           </div>
         )}
       </Modal>

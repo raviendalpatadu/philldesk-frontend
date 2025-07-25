@@ -11,7 +11,9 @@ import {
   Typography, 
   Button, 
   message,
-  Space
+  Space,
+  Alert,
+  Badge
 } from 'antd'
 import {
   FileTextOutlined,
@@ -21,9 +23,12 @@ import {
   DollarOutlined,
   PlusOutlined,
   ClockCircleOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  BellOutlined,
+  ShoppingOutlined
 } from '@ant-design/icons'
 import customerService, { CustomerStats } from '../../services/customerService'
+import { notificationService } from '../../services/notificationService'
 
 const { Title } = Typography
 
@@ -38,9 +43,21 @@ const CustomerDashboard: React.FC = () => {
     totalSpent: 0
   })
   const [loading, setLoading] = useState(true)
+  const [billNotifications, setBillNotifications] = useState<{
+    hasNewBills: boolean;
+    newBillsCount: number;
+    newBills?: Array<{
+      billId: number;
+      billNumber: string;
+      prescriptionNumber: string;
+      amount: number;
+      createdAt: string;
+    }>;
+  } | null>(null)
 
   useEffect(() => {
     fetchDashboardStats()
+    checkBillNotifications()
   }, [])
 
   const fetchDashboardStats = async () => {
@@ -53,6 +70,28 @@ const CustomerDashboard: React.FC = () => {
       console.error('Error:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const checkBillNotifications = async () => {
+    try {
+      const notifications = await customerService.getRecentBillNotifications()
+      setBillNotifications(notifications)
+      
+      // Show notifications for new bills
+      if (notifications.hasNewBills && notifications.newBills) {
+        notifications.newBills.forEach(bill => {
+          notificationService.showNewBillNotification({
+            billId: bill.billId,
+            billNumber: bill.billNumber,
+            prescriptionNumber: bill.prescriptionNumber,
+            amount: bill.amount,
+            createdAt: bill.createdAt
+          })
+        })
+      }
+    } catch (error) {
+      console.error('Error checking bill notifications:', error)
     }
   }
 
@@ -73,6 +112,28 @@ const CustomerDashboard: React.FC = () => {
           Upload Prescription
         </Button>
       </div>
+
+      {/* Bill Notifications Alert */}
+      {billNotifications?.hasNewBills && (
+        <Alert
+          message={`${billNotifications.newBillsCount} New Bill${billNotifications.newBillsCount > 1 ? 's' : ''} Generated!`}
+          description="Your prescription(s) have been approved and bills are ready for payment."
+          type="success"
+          showIcon
+          icon={<BellOutlined />}
+          action={
+            <Button 
+              size="small" 
+              type="primary"
+              onClick={() => window.location.href = '/customer/bills'}
+            >
+              View Bills
+            </Button>
+          }
+          closable
+          style={{ marginBottom: '24px' }}
+        />
+      )}
 
       {/* Stats Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
@@ -179,9 +240,15 @@ const CustomerDashboard: React.FC = () => {
               <Button 
                 icon={<DollarOutlined />} 
                 block
-                onClick={() => window.location.href = '/customer/purchase-history'}
+                onClick={() => window.location.href = '/customer/bills'}
               >
-                Purchase History
+                <Badge 
+                  count={billNotifications?.newBillsCount || 0} 
+                  offset={[10, 0]}
+                  size="small"
+                >
+                  View Bills & Payments
+                </Badge>
               </Button>
             </Space>
           </Card>

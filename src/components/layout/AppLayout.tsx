@@ -109,7 +109,7 @@ const AppLayout: React.FC = () => {
     if (path.startsWith('/pharmacist/inventory') || path === '/pharmacist/reorder-management') {
       openKeys.push('inventory')
     }
-    if (path.startsWith('/pharmacist/billing')) {
+    if (path.startsWith('/pharmacist/billing') || path === '/pharmacist/manual-billing') {
       openKeys.push('billing')
     }
     if (path.startsWith('/admin/')) {
@@ -268,6 +268,25 @@ const AppLayout: React.FC = () => {
             ],
           },
           {
+            key: 'billing',
+            icon: <ShoppingCartOutlined />,
+            label: 'Billing & Sales',
+            children: [
+              {
+                key: '/pharmacist/billing',
+                icon: <FileTextOutlined />,
+                label: 'Prescription Bills',
+                onClick: () => navigate('/pharmacist/billing'),
+              },
+              {
+                key: '/pharmacist/manual-billing',
+                icon: <ShoppingCartOutlined />,
+                label: 'Manual Billing',
+                onClick: () => navigate('/pharmacist/manual-billing'),
+              },
+            ],
+          },
+          {
             key: 'inventory',
             icon: <BoxPlotOutlined />,
             label: 'Inventory Management',
@@ -284,7 +303,6 @@ const AppLayout: React.FC = () => {
                 label: (
                   <Space>
                     Low Stock Items
-                    <Badge count={3} size="small" />
                   </Space>
                 ),
                 onClick: () => navigate('/pharmacist/inventory?filter=low-stock'),
@@ -295,36 +313,10 @@ const AppLayout: React.FC = () => {
                 label: (
                   <Space>
                     Out of Stock
-                    <Badge count={1} size="small" />
                   </Space>
                 ),
                 onClick: () => navigate('/pharmacist/inventory?filter=out-of-stock'),
-              },
-              {
-                key: '/pharmacist/reorder-management',
-                icon: <ShopOutlined />,
-                label: 'Reorder Management',
-                onClick: () => navigate('/pharmacist/reorder-management'),
-              },
-            ],
-          },
-          {
-            key: 'billing',
-            icon: <ShoppingCartOutlined />,
-            label: 'Billing & Sales',
-            children: [
-              {
-                key: '/pharmacist/billing',
-                icon: <ShoppingCartOutlined />,
-                label: 'Generate Bills',
-                onClick: () => navigate('/pharmacist/billing'),
-              },
-              {
-                key: '/pharmacist/sales',
-                icon: <ShoppingCartOutlined />,
-                label: 'Sales History',
-                onClick: () => navigate('/pharmacist/billing?view=history'),
-              },
+              }
             ],
           },
           {
@@ -372,7 +364,6 @@ const AppLayout: React.FC = () => {
                 label: (
                   <Space>
                     Pending
-                    <Badge count={3} size="small" />
                   </Space>
                 ),
                 onClick: () => navigate('/customer/pending'),

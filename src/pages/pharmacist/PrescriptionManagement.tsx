@@ -78,336 +78,6 @@ const { RangePicker } = DatePicker;
 const { TextArea } = Input;
 const { TabPane } = Tabs;
 
-// Mock data for development - comprehensive prescription data
-const mockPrescriptions: any[] = [
-  {
-    id: "1",
-    prescriptionId: "RX001-2024",
-    prescriptionNumber: "RX001-2024",
-    patientName: "John Smith",
-    patientId: "P001",
-    age: 45,
-    gender: "Male",
-    phone: "+1-555-0123",
-    email: "john.smith@email.com",
-    doctorName: "Dr. Sarah Johnson",
-    doctorSpecialty: "Cardiology",
-    doctorPhone: "+1-555-0987",
-    status: "Pending Review",
-    priority: "Emergency",
-    submittedDate: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-    allergies: ["Penicillin", "Latex"],
-    medicalConditions: ["Hypertension", "Diabetes Type 2"],
-    insuranceInfo: {
-      provider: "Blue Cross Blue Shield",
-      policyNumber: "BC12345678",
-      groupNumber: "GRP001",
-      copay: 25.0,
-    },
-    prescriptionItems: [
-      {
-        id: 1,
-        medicine: {
-          id: 1,
-          name: "Lisinopril",
-          strength: "10mg",
-          form: "Tablet",
-          ndc: "12345-678-90",
-          unitPrice: 0.53,
-          stockQuantity: 500,
-        },
-        quantity: 30,
-        daysSupply: 30,
-        refills: 5,
-        instructions: "Take 1 tablet daily with or without food",
-      },
-      {
-        id: 2,
-        medicine: {
-          id: 2,
-          name: "Metformin",
-          strength: "500mg",
-          form: "Tablet",
-          ndc: "98765-432-10",
-          unitPrice: 0.3,
-          stockQuantity: 300,
-        },
-        quantity: 60,
-        daysSupply: 30,
-        refills: 3,
-        instructions: "Take 1 tablet twice daily with meals",
-      },
-    ],
-    prescriptionFiles: [
-      {
-        name: "prescription_scan.pdf",
-        type: "application/pdf",
-        size: "2.4 MB",
-        uploadDate: new Date().toISOString(),
-      },
-    ],
-    customerInputs: {
-      emergencyRequest: true,
-      doctorNameProvided: "Dr. Sarah Johnson",
-      prescriptionDateProvided: new Date().toISOString(),
-      patientNotes:
-        "Emergency refill needed for heart medication. Running out tomorrow.",
-      additionalInstructions:
-        "Please expedite this prescription as patient is traveling.",
-    },
-    notes: "Emergency prescription - patient traveling tomorrow",
-  },
-  {
-    id: "2",
-    prescriptionId: "RX002-2024",
-    prescriptionNumber: "RX002-2024",
-    patientName: "Maria Garcia",
-    patientId: "P002",
-    age: 32,
-    gender: "Female",
-    phone: "+1-555-0456",
-    email: "maria.garcia@email.com",
-    doctorName: "Dr. Michael Chen",
-    doctorSpecialty: "Family Medicine",
-    doctorPhone: "+1-555-0654",
-    status: "Under Review",
-    priority: "Normal",
-    submittedDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    allergies: [],
-    medicalConditions: ["Asthma"],
-    insuranceInfo: {
-      provider: "Aetna",
-      policyNumber: "AET987654",
-      groupNumber: "GRP002",
-      copay: 15.0,
-    },
-    prescriptionItems: [
-      {
-        id: 3,
-        medicine: {
-          id: 3,
-          name: "Albuterol Inhaler",
-          strength: "90mcg",
-          form: "Inhaler",
-          ndc: "11111-222-33",
-          unitPrice: 45.99,
-          stockQuantity: 50,
-        },
-        quantity: 1,
-        daysSupply: 30,
-        refills: 2,
-        instructions: "2 puffs every 4-6 hours as needed for wheezing",
-      },
-    ],
-    prescriptionFiles: [
-      {
-        name: "prescription_image.jpg",
-        type: "image/jpeg",
-        size: "1.8 MB",
-        uploadDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      },
-    ],
-    customerInputs: {
-      emergencyRequest: false,
-      doctorNameProvided: "Dr. Michael Chen",
-      prescriptionDateProvided: new Date(
-        Date.now() - 25 * 60 * 60 * 1000
-      ).toISOString(),
-      patientNotes: "Regular refill for asthma inhaler",
-      additionalInstructions: "Please check if generic version available",
-    },
-  },
-  {
-    id: "3",
-    prescriptionId: "RX003-2024",
-    prescriptionNumber: "RX003-2024",
-    patientName: "Robert Johnson",
-    patientId: "P003",
-    age: 67,
-    gender: "Male",
-    phone: "+1-555-0789",
-    email: "robert.j@email.com",
-    doctorName: "Dr. Emily Rodriguez",
-    doctorSpecialty: "Endocrinology",
-    doctorPhone: "+1-555-0321",
-    status: "Ready for Pickup",
-    priority: "Normal",
-    submittedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    allergies: ["Sulfa drugs"],
-    medicalConditions: ["Type 1 Diabetes", "Hypertension"],
-    insuranceInfo: {
-      provider: "Medicare",
-      policyNumber: "MED123456789",
-      groupNumber: "MED001",
-      copay: 10.0,
-    },
-    prescriptionItems: [
-      {
-        id: 4,
-        medicine: {
-          id: 4,
-          name: "Insulin Glargine",
-          strength: "100 units/mL",
-          form: "Injection",
-          ndc: "55555-666-77",
-          unitPrice: 41.67,
-          stockQuantity: 25,
-        },
-        quantity: 3,
-        daysSupply: 30,
-        refills: 5,
-        instructions: "Inject 20 units subcutaneously once daily at bedtime",
-      },
-    ],
-    prescriptionFiles: [
-      {
-        name: "insulin_prescription.pdf",
-        type: "application/pdf",
-        size: "1.2 MB",
-        uploadDate: new Date(
-          Date.now() - 2 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      },
-    ],
-    customerInputs: {
-      emergencyRequest: false,
-      doctorNameProvided: "Dr. Emily Rodriguez",
-      prescriptionDateProvided: new Date(
-        Date.now() - 3 * 24 * 60 * 60 * 1000
-      ).toISOString(),
-      patientNotes: "Monthly insulin refill",
-      additionalInstructions: "",
-    },
-    reviewNotes:
-      "Approved for dispensing. Patient education provided on injection technique.",
-  },
-  {
-    id: "4",
-    prescriptionId: "RX004-2024",
-    prescriptionNumber: "RX004-2024",
-    patientName: "Lisa Wang",
-    patientId: "P004",
-    age: 28,
-    gender: "Female",
-    phone: "+1-555-0234",
-    email: "lisa.wang@email.com",
-    doctorName: "Dr. James Wilson",
-    doctorSpecialty: "Dermatology",
-    doctorPhone: "+1-555-0567",
-    status: "Requires Clarification",
-    priority: "Urgent",
-    submittedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    allergies: ["Codeine"],
-    medicalConditions: ["Eczema"],
-    insuranceInfo: {
-      provider: "United Healthcare",
-      policyNumber: "UH567890123",
-      groupNumber: "UH003",
-      copay: 20.0,
-    },
-    prescriptionItems: [
-      {
-        id: 5,
-        medicine: {
-          id: 5,
-          name: "Triamcinolone Cream",
-          strength: "0.1%",
-          form: "Topical Cream",
-          ndc: "77777-888-99",
-          unitPrice: 35.5,
-          stockQuantity: 40,
-        },
-        quantity: 1,
-        daysSupply: 30,
-        refills: 2,
-        instructions: "Apply thin layer to affected areas twice daily",
-      },
-    ],
-    prescriptionFiles: [
-      {
-        name: "dermatology_rx.jpg",
-        type: "image/jpeg",
-        size: "2.1 MB",
-        uploadDate: new Date(
-          Date.now() - 3 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      },
-    ],
-    customerInputs: {
-      emergencyRequest: false,
-      doctorNameProvided: "Dr. James Wilson",
-      prescriptionDateProvided: new Date(
-        Date.now() - 4 * 24 * 60 * 60 * 1000
-      ).toISOString(),
-      patientNotes: "Prescription for eczema flare-up",
-      additionalInstructions: "Need stronger strength if available",
-    },
-    reviewNotes:
-      "Image quality poor - cannot verify prescription details. Please resubmit clearer image.",
-  },
-];
-
-const mockInventory: any[] = [
-  {
-    id: 1,
-    name: "Lisinopril",
-    genericName: "Lisinopril",
-    manufacturer: "Lupin Pharmaceuticals",
-    category: "Cardiovascular",
-    dosageForm: "Tablet",
-    strength: "10mg",
-    quantity: 150,
-    unitPrice: 0.55,
-    costPrice: 0.35,
-    expiryDate: "2025-12-31",
-    batchNumber: "LIS2024001",
-    reorderLevel: 25,
-    description: "ACE inhibitor for hypertension",
-    isPrescriptionRequired: true,
-    isActive: true,
-  },
-  {
-    id: 2,
-    name: "Metformin",
-    genericName: "Metformin HCl",
-    manufacturer: "Teva Pharmaceuticals",
-    category: "Diabetes",
-    dosageForm: "Tablet",
-    strength: "500mg",
-    quantity: 8,
-    unitPrice: 0.25,
-    costPrice: 0.15,
-    expiryDate: "2025-06-30",
-    batchNumber: "MET2024002",
-    reorderLevel: 50,
-    description: "Antidiabetic medication",
-    isPrescriptionRequired: true,
-    isActive: true,
-  },
-  {
-    id: 3,
-    name: "Albuterol Inhaler",
-    genericName: "Albuterol Sulfate",
-    manufacturer: "Proventil",
-    category: "Respiratory",
-    dosageForm: "Inhaler",
-    strength: "90mcg",
-    quantity: 25,
-    unitPrice: 45.99,
-    costPrice: 30.0,
-    expiryDate: "2025-03-15",
-    batchNumber: "ALB2024003",
-    reorderLevel: 10,
-    description: "Bronchodilator for asthma",
-    isPrescriptionRequired: true,
-    isActive: true,
-  },
-];
-
 const PrescriptionManagement: React.FC = () => {
   // State management
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
@@ -457,6 +127,8 @@ const PrescriptionManagement: React.FC = () => {
           return "Requires Clarification";
         case "COMPLETED":
           return "Completed";
+        case "READY_FOR_PICKUP":
+          return "Ready for Pickup";
         default:
           // Handle legacy frontend statuses
           if (
@@ -520,7 +192,6 @@ const PrescriptionManagement: React.FC = () => {
       console.log("Dashboard stats loaded:", stats);
 
       setDashboardStats(stats);
-      message.success("Dashboard data loaded successfully");
     } catch (error) {
       console.error("Failed to load dashboard stats:", error);
       message.warning("Dashboard stats unavailable - using calculated values");
@@ -563,20 +234,14 @@ const PrescriptionManagement: React.FC = () => {
         );
         setPrescriptions(prescriptionData);
         setFilteredPrescriptions(prescriptionData);
-        message.success(
-          `Loaded ${prescriptionData.length} prescriptions from backend`
-        );
+   
       } else {
         console.log("No prescriptions found in backend, using demo data");
-        setPrescriptions(mockPrescriptions);
-        setFilteredPrescriptions(mockPrescriptions);
         message.info("No prescriptions found - showing demo data");
       }
     } catch (error) {
       console.error("Failed to load prescriptions from backend:", error);
-      // Fall back to mock data for development
-      setPrescriptions(mockPrescriptions);
-      setFilteredPrescriptions(mockPrescriptions);
+    
       message.warning("Backend unavailable - using demo data for development");
     } finally {
       setLoading(false);
@@ -590,14 +255,6 @@ const PrescriptionManagement: React.FC = () => {
     } catch (error) {
       console.warn("API call failed, using mock data for development:", error);
       // Fall back to mock data for development
-      setInventoryData({
-        medicines: mockInventory,
-        lowStock: mockInventory.filter(
-          (item) => item.quantity <= item.reorderLevel
-        ),
-        criticalLow: mockInventory.filter((item) => item.quantity <= 5),
-        outOfStock: mockInventory.filter((item) => item.quantity === 0),
-      });
     }
   };
 
@@ -851,7 +508,6 @@ const PrescriptionManagement: React.FC = () => {
       }
 
       setDetailsDrawerVisible(true);
-      message.success("Prescription details loaded");
     } catch (error) {
       console.error("Error opening prescription details:", error);
       message.error("Failed to open prescription details");
@@ -1357,37 +1013,23 @@ const PrescriptionManagement: React.FC = () => {
       {/* Statistics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: "24px" }}>
         <Col xs={24} sm={12} md={4}>
-          <Card
-            hoverable
-            onClick={() => setPendingApprovalModalVisible(true)}
-            style={{ cursor: "pointer" }}
-          >
+          <Card>
             <Statistic
               title="Pending Review"
               value={stats.pending}
               prefix={<ClockCircleOutlined style={{ color: "#fa8c16" }} />}
               valueStyle={{ color: "#fa8c16" }}
             />
-            <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
-              Click to view details
-            </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={4}>
-          <Card
-            hoverable
-            onClick={() => setApprovedTodayModalVisible(true)}
-            style={{ cursor: "pointer" }}
-          >
+          <Card>
             <Statistic
               title="Approved Today"
               value={stats.approvedToday}
               prefix={<CheckCircleOutlined style={{ color: "#52c41a" }} />}
               valueStyle={{ color: "#52c41a" }}
             />
-            <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
-              Click to view details
-            </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={4}>
@@ -1437,67 +1079,6 @@ const PrescriptionManagement: React.FC = () => {
               value={stats.total}
               prefix={<FileTextOutlined style={{ color: "#722ed1" }} />}
               valueStyle={{ color: "#722ed1" }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Inventory Statistics Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: "24px" }}>
-        <Col xs={24} sm={12} md={4}>
-          <Card
-            hoverable
-            onClick={() => setInventoryModalVisible(true)}
-            style={{ cursor: "pointer" }}
-          >
-            <Statistic
-              title="Inventory Items"
-              value={stats.totalInventoryItems}
-              prefix={<BoxPlotOutlined style={{ color: "#1890ff" }} />}
-              valueStyle={{ color: "#1890ff" }}
-            />
-            <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
-              Click to view inventory
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={4}>
-          <Card>
-            <Statistic
-              title="Low Stock"
-              value={stats.lowStockItems}
-              prefix={<WarningOutlined style={{ color: "#fa8c16" }} />}
-              valueStyle={{ color: "#fa8c16" }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={4}>
-          <Card>
-            <Statistic
-              title="Out of Stock"
-              value={stats.outOfStockItems}
-              prefix={<AlertOutlined style={{ color: "#f5222d" }} />}
-              valueStyle={{ color: "#f5222d" }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={4}>
-          <Card>
-            <Statistic
-              title="Critical Low"
-              value={stats.criticalLowItems}
-              prefix={<CloseCircleOutlined style={{ color: "#ff4d4f" }} />}
-              valueStyle={{ color: "#ff4d4f" }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={4}>
-          <Card>
-            <Statistic
-              title="Total Value"
-              value={`$${(stats.totalInventoryValue || 0).toFixed(2)}`}
-              prefix={<BarChartOutlined style={{ color: "#52c41a" }} />}
-              valueStyle={{ color: "#52c41a" }}
             />
           </Card>
         </Col>
@@ -2162,7 +1743,6 @@ const PrescriptionManagement: React.FC = () => {
               }}
               editable={true}
               showHeader={true}
-              taxRate={0.1}
             />
 
             {/* Pharmacist Information */}
@@ -3173,7 +2753,7 @@ const PrescriptionManagement: React.FC = () => {
 
           {/* Inventory Table */}
           <Table
-            dataSource={inventoryData.medicines || mockInventory || []}
+            dataSource={inventoryData.medicines || []}
             rowKey="id"
             size="small"
             pagination={{ pageSize: 10 }}

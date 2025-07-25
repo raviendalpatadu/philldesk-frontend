@@ -6,7 +6,7 @@
  * reorder functionality, and comprehensive order management.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   Typography, 
   Table, 
@@ -23,10 +23,10 @@ import {
   Modal,
   Descriptions,
   Timeline,
-  Rate,
   message,
   Divider,
-  Tooltip
+  Tooltip,
+  Spin
 } from 'antd'
 import { 
   EyeOutlined, 
@@ -43,138 +43,98 @@ import {
   InboxOutlined,
   WarningOutlined
 } from '@ant-design/icons'
+import customerService from '../../services/customerService'
 
 const { Title, Text } = Typography
 const { Option } = Select
 const { RangePicker } = DatePicker
 const { TextArea } = Input
 
-// Mock data for orders with comprehensive details
-const mockOrders = [
-  {
-    key: '1',
-    orderId: 'ORD-2024-001',
-    date: '2024-01-15',
-    prescriptionId: 'RX-2024-001',
-    doctorName: 'Dr. Sarah Johnson',
-    items: [
-      { name: 'Paracetamol 500mg', quantity: 30, price: 15.50, manufacturer: 'PharmaCorp' },
-      { name: 'Amoxicillin 250mg', quantity: 20, price: 30.00, manufacturer: 'MediPharm' }
-    ],
-    status: 'Delivered',
-    statusCode: 4,
-    total: 45.50,
-    shippingCost: 5.00,
-    discount: 0,
-    tax: 3.64,
-    netTotal: 54.14,
-    estimatedDelivery: '2024-01-18',
-    actualDelivery: '2024-01-17',
-    trackingNumber: 'TRK123456789',
-    courier: 'FastDelivery',
-    shippingAddress: '123 Main St, City, State 12345',
-    paymentMethod: 'Credit Card',
-    orderNotes: 'Urgent delivery requested',
-    canReorder: true,
-    rating: 5,
-    feedback: 'Great service, fast delivery!'
-  },
-  {
-    key: '2',
-    orderId: 'ORD-2024-002',
-    date: '2024-01-20',
-    prescriptionId: 'RX-2024-002',
-    doctorName: 'Dr. Michael Chen',
-    items: [
-      { name: 'Insulin Pen', quantity: 5, price: 80.00, manufacturer: 'DiabetesCare' },
-      { name: 'Blood Glucose Strips', quantity: 50, price: 40.00, manufacturer: 'TestStrip Inc' }
-    ],
-    status: 'In Transit',
-    statusCode: 3,
-    total: 120.00,
-    shippingCost: 7.50,
-    discount: 10.00,
-    tax: 9.60,
-    netTotal: 127.10,
-    estimatedDelivery: '2024-01-25',
-    actualDelivery: null,
-    trackingNumber: 'TRK987654321',
-    courier: 'QuickShip',
-    shippingAddress: '456 Oak Ave, Town, State 67890',
-    paymentMethod: 'Insurance + Credit Card',
-    orderNotes: 'Handle with care - temperature sensitive',
-    canReorder: true,
-    rating: null,
-    feedback: null
-  },
-  {
-    key: '3',
-    orderId: 'ORD-2024-003',
-    date: '2024-01-25',
-    prescriptionId: 'RX-2024-003',
-    doctorName: 'Dr. Emily Rodriguez',
-    items: [
-      { name: 'Lisinopril 10mg', quantity: 90, price: 25.00, manufacturer: 'CardioMeds' },
-      { name: 'Vitamin D3 1000IU', quantity: 60, price: 15.00, manufacturer: 'HealthPlus' }
-    ],
-    status: 'Processing',
-    statusCode: 1,
-    total: 40.00,
-    shippingCost: 5.00,
-    discount: 5.00,
-    tax: 3.20,
-    netTotal: 43.20,
-    estimatedDelivery: '2024-01-30',
-    actualDelivery: null,
-    trackingNumber: null,
-    courier: 'StandardPost',
-    shippingAddress: '789 Pine St, Village, State 13579',
-    paymentMethod: 'Insurance',
-    orderNotes: 'Regular monthly refill',
-    canReorder: true,
-    rating: null,
-    feedback: null
-  },
-  {
-    key: '4',
-    orderId: 'ORD-2024-004',
-    date: '2024-01-10',
-    prescriptionId: 'RX-2024-004',
-    doctorName: 'Dr. Robert Thompson',
-    items: [
-      { name: 'Omeprazole 20mg', quantity: 30, price: 20.00, manufacturer: 'GastroCare' }
-    ],
-    status: 'Cancelled',
-    statusCode: -1,
-    total: 20.00,
-    shippingCost: 5.00,
-    discount: 0,
-    tax: 1.60,
-    netTotal: 26.60,
-    estimatedDelivery: null,
-    actualDelivery: null,
-    trackingNumber: null,
-    courier: null,
-    shippingAddress: '321 Elm St, Suburb, State 24680',
-    paymentMethod: 'Credit Card',
-    orderNotes: 'Cancelled due to prescription change',
-    canReorder: false,
-    rating: null,
-    feedback: null
-  }
-]
+// Order and OrderItem interfaces
+interface OrderItem {
+  name: string;
+  quantity: number;
+  price: number;
+  manufacturer: string;
+  instructions?: string;
+  dosage?: string;
+  frequency?: string;
+}
+
+interface Order {
+  key: string;
+  orderId: string;
+  date: string;
+  prescriptionId: string;
+  doctorName: string;
+  items: OrderItem[];
+  status: string;
+  statusCode: number;
+  total: number;
+  shippingCost: number;
+  discount: number;
+  tax: number;
+  netTotal: number;
+  estimatedDelivery?: string;
+  actualDelivery?: string;
+  trackingNumber?: string;
+  courier: string;
+  shippingAddress?: string;
+  paymentMethod?: string;
+  orderNotes?: string;
+  canReorder: boolean;
+  rating?: number;
+  feedback?: string;
+}
+
+interface TrackingEvent {
+  status: string;
+  description: string;
+  timestamp?: string;
+  completed: boolean;
+}
+
+interface OrderTracking {
+  orderId: string;
+  prescriptionNumber: string;
+  trackingNumber?: string;
+  courier?: string;
+  shippingStatus?: string;
+  estimatedDelivery?: string;
+  actualDelivery?: string;
+  timeline: TrackingEvent[];
+}
 
 const OrdersPage: React.FC = () => {
-  const [orders] = useState(mockOrders)
-  const [filteredOrders, setFilteredOrders] = useState(mockOrders)
-  const [selectedOrder, setSelectedOrder] = useState<any>(null)
+  const [orders, setOrders] = useState<Order[]>([])
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [trackingData, setTrackingData] = useState<OrderTracking | null>(null)
   const [detailsVisible, setDetailsVisible] = useState(false)
-  const [reorderVisible, setReorderVisible] = useState(false)
   const [trackingVisible, setTrackingVisible] = useState(false)
-  const [ratingVisible, setRatingVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [dateRange, setDateRange] = useState<any[]>([])
+  const [dateRange, setDateRange] = useState<[any, any] | null>(null)
+
+  // Load orders on component mount
+  useEffect(() => {
+    loadOrders()
+  }, [])
+
+  const loadOrders = async () => {
+    try {
+      setLoading(true)
+      const orderData = await customerService.getOrderHistory()
+      setOrders(orderData)
+      setFilteredOrders(orderData)
+    } catch (error) {
+      console.error('Error loading orders:', error)
+      message.error('Failed to load order history')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Filter orders based on search and filters
   const handleFilter = () => {
@@ -193,7 +153,7 @@ const OrdersPage: React.FC = () => {
       filtered = filtered.filter(order => order.status === statusFilter)
     }
 
-    if (dateRange && dateRange.length === 2) {
+    if (dateRange && dateRange.length === 2 && dateRange[0] && dateRange[1]) {
       filtered = filtered.filter(order => {
         const orderDate = new Date(order.date)
         return orderDate >= dateRange[0].toDate() && orderDate <= dateRange[1].toDate()
@@ -223,18 +183,6 @@ const OrdersPage: React.FC = () => {
     )
   }
 
-  // Handle reorder functionality
-  const handleReorder = (order: any) => {
-    setSelectedOrder(order)
-    setReorderVisible(true)
-  }
-
-  // Handle order rating
-  const handleRate = (order: any) => {
-    setSelectedOrder(order)
-    setRatingVisible(true)
-  }
-
   // View order details
   const viewDetails = (order: any) => {
     setSelectedOrder(order)
@@ -242,9 +190,34 @@ const OrdersPage: React.FC = () => {
   }
 
   // View tracking information
-  const viewTracking = (order: any) => {
-    setSelectedOrder(order)
-    setTrackingVisible(true)
+  const viewTracking = async (order: Order) => {
+    try {
+      setSelectedOrder(order)
+      setTrackingVisible(true)
+      
+      if (order.trackingNumber) {
+        const tracking = await customerService.getOrderTracking(order.orderId)
+        setTrackingData(tracking)
+      } else {
+        setTrackingData(null)
+      }
+    } catch (error) {
+      console.error('Error loading tracking data:', error)
+      message.error('Failed to load tracking information')
+    }
+  }
+
+  // Download bill as PDF
+  const handleDownloadBill = async (order: Order) => {
+    try {
+      // Extract billId from orderId or use orderId if it's the billId
+      const billId = parseInt(order.orderId.replace(/[^0-9]/g, '')) || parseInt(order.orderId)
+      await customerService.downloadBill(billId)
+      message.success('Bill downloaded successfully!')
+    } catch (error) {
+      console.error('Error downloading bill:', error)
+      message.error('Failed to download bill. Please try again.')
+    }
   }
 
   // Calculate statistics
@@ -263,7 +236,7 @@ const OrdersPage: React.FC = () => {
       dataIndex: 'orderId',
       key: 'orderId',
       width: 120,
-      render: (text: string, record: any) => (
+      render: (text: string, record: Order) => (
         <Space direction="vertical" size="small">
           <Text strong>{text}</Text>
           <Text type="secondary" style={{ fontSize: '12px' }}>
@@ -277,7 +250,7 @@ const OrdersPage: React.FC = () => {
       dataIndex: 'date',
       key: 'date',
       width: 100,
-      sorter: (a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      sorter: (a: Order, b: Order) => new Date(a.date).getTime() - new Date(b.date).getTime(),
       render: (date: string) => (
         <Text>{new Date(date).toLocaleDateString()}</Text>
       ),
@@ -293,7 +266,7 @@ const OrdersPage: React.FC = () => {
       dataIndex: 'items',
       key: 'items',
       width: 200,
-      render: (items: any[]) => (
+      render: (items: OrderItem[]) => (
         <div>
           {items.slice(0, 2).map((item, index) => (
             <div key={`${item.name}-${index}`} style={{ fontSize: '12px' }}>
@@ -315,11 +288,10 @@ const OrdersPage: React.FC = () => {
       width: 120,
       filters: [
         { text: 'Processing', value: 'Processing' },
-        { text: 'In Transit', value: 'In Transit' },
         { text: 'Delivered', value: 'Delivered' },
         { text: 'Cancelled', value: 'Cancelled' },
       ],
-      onFilter: (value: any, record: any) => record.status === value,
+      onFilter: (value: any, record: Order) => record.status === value,
       render: (status: string) => getStatusDisplay(status),
     },
     {
@@ -327,7 +299,7 @@ const OrdersPage: React.FC = () => {
       dataIndex: 'netTotal',
       key: 'netTotal',
       width: 100,
-      sorter: (a: any, b: any) => a.netTotal - b.netTotal,
+      sorter: (a: Order, b: Order) => a.netTotal - b.netTotal,
       render: (total: number) => (
         <Text strong>${total.toFixed(2)}</Text>
       ),
@@ -336,7 +308,7 @@ const OrdersPage: React.FC = () => {
       title: 'Actions',
       key: 'actions',
       width: 180,
-      render: (_: any, record: any) => (
+      render: (_: any, record: Order) => (
         <Space size="small">
           <Tooltip title="View Details">
             <Button 
@@ -358,33 +330,11 @@ const OrdersPage: React.FC = () => {
             </Tooltip>
           )}
           
-          {record.canReorder && (
-            <Tooltip title="Reorder">
-              <Button 
-                type="text" 
-                icon={<ReloadOutlined />} 
-                onClick={() => handleReorder(record)}
-                size="small"
-              />
-            </Tooltip>
-          )}
-          
-          {record.status === 'Delivered' && !record.rating && (
-            <Tooltip title="Rate Order">
-              <Button 
-                type="text" 
-                icon={<StarOutlined />} 
-                onClick={() => handleRate(record)}
-                size="small"
-              />
-            </Tooltip>
-          )}
-          
-          <Tooltip title="Download Invoice">
+          <Tooltip title="Download Bill">
             <Button 
               type="text" 
               icon={<DownloadOutlined />} 
-              onClick={() => message.success('Invoice downloaded!')}
+              onClick={() => handleDownloadBill(record)}
               size="small"
             />
           </Tooltip>
@@ -497,7 +447,7 @@ const OrdersPage: React.FC = () => {
                 onClick={() => {
                   setSearchText('')
                   setStatusFilter('all')
-                  setDateRange([])
+                  setDateRange(null)
                   setFilteredOrders(orders)
                 }}
               >
@@ -517,17 +467,24 @@ const OrdersPage: React.FC = () => {
 
       {/* Orders Table */}
       <Card>
-        <Table
-          columns={columns}
-          dataSource={filteredOrders}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} orders`,
-          }}
-          scroll={{ x: 1200 }}
-          size="middle"
-        />
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '50px' }}>
+            <Spin size="large" />
+            <p style={{ marginTop: '20px' }}>Loading your order history...</p>
+          </div>
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={filteredOrders}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} orders`,
+            }}
+            scroll={{ x: 1200 }}
+            size="middle"
+          />
+        )}
       </Card>
 
       {/* Order Details Modal */}
@@ -544,12 +501,7 @@ const OrdersPage: React.FC = () => {
         footer={[
           <Button key="close" onClick={() => setDetailsVisible(false)}>
             Close
-          </Button>,
-          selectedOrder?.canReorder && (
-            <Button key="reorder" type="primary" onClick={() => handleReorder(selectedOrder)}>
-              Reorder
-            </Button>
-          ),
+          </Button>
         ]}
       >
         {selectedOrder && (
@@ -641,14 +593,20 @@ const OrdersPage: React.FC = () => {
           </Space>
         }
         open={trackingVisible}
-        onCancel={() => setTrackingVisible(false)}
+        onCancel={() => {
+          setTrackingVisible(false)
+          setTrackingData(null)
+        }}
         footer={[
-          <Button key="close" onClick={() => setTrackingVisible(false)}>
+          <Button key="close" onClick={() => {
+            setTrackingVisible(false)
+            setTrackingData(null)
+          }}>
             Close
           </Button>,
         ]}
       >
-        {selectedOrder?.trackingNumber && (
+        {selectedOrder?.trackingNumber ? (
           <div>
             <Card style={{ marginBottom: '16px' }}>
               <Row gutter={16}>
@@ -665,108 +623,39 @@ const OrdersPage: React.FC = () => {
               </Row>
             </Card>
 
-            <Timeline
-              items={[
-                {
-                  color: 'blue',
+            {trackingData ? (
+              <Timeline
+                items={trackingData.timeline.map((event) => ({
+                  color: event.completed ? 'green' : 'gray',
                   children: (
                     <div>
-                      <Text strong>Order Placed</Text>
+                      <Text strong>{event.status}</Text>
                       <br />
-                      <Text type="secondary">{new Date(selectedOrder.date).toLocaleString()}</Text>
+                      <Text type="secondary">{event.description}</Text>
+                      {event.timestamp && (
+                        <>
+                          <br />
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            {new Date(event.timestamp).toLocaleString()}
+                          </Text>
+                        </>
+                      )}
                     </div>
                   ),
-                },
-                {
-                  color: selectedOrder.statusCode >= 2 ? 'green' : 'gray',
-                  children: (
-                    <div>
-                      <Text strong>Order Confirmed</Text>
-                      <br />
-                      <Text type="secondary">Prescription verified and approved</Text>
-                    </div>
-                  ),
-                },
-                {
-                  color: selectedOrder.statusCode >= 3 ? 'green' : 'gray',
-                  children: (
-                    <div>
-                      <Text strong>Package Shipped</Text>
-                      <br />
-                      <Text type="secondary">Package picked up by courier</Text>
-                    </div>
-                  ),
-                },
-                {
-                  color: selectedOrder.statusCode >= 4 ? 'green' : 'gray',
-                  children: (
-                    <div>
-                      <Text strong>Delivered</Text>
-                      <br />
-                      <Text type="secondary">
-                        {selectedOrder.actualDelivery 
-                          ? new Date(selectedOrder.actualDelivery).toLocaleString()
-                          : `Expected: ${new Date(selectedOrder.estimatedDelivery).toLocaleDateString()}`
-                        }
-                      </Text>
-                    </div>
-                  ),
-                },
-              ]}
-            />
-          </div>
-        )}
-      </Modal>
-
-      {/* Reorder Modal */}
-      <Modal
-        title="Reorder Confirmation"
-        open={reorderVisible}
-        onCancel={() => setReorderVisible(false)}
-        onOk={() => {
-          message.success('Items added to cart for reorder!')
-          setReorderVisible(false)
-        }}
-      >
-        {selectedOrder && (
-          <div>
-            <Text>Are you sure you want to reorder the following items?</Text>
-            <Divider />
-            {selectedOrder.items.map((item: any, index: number) => (
-              <div key={`${item.name}-${index}`} style={{ marginBottom: '8px' }}>
-                <Text strong>{item.name}</Text> - Quantity: {item.quantity}
+                }))}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px' }}>
+                <Spin />
+                <p>Loading tracking information...</p>
               </div>
-            ))}
-            <Divider />
-            <Text type="secondary">
-              Note: A new prescription may be required for prescription medications.
-            </Text>
+            )}
           </div>
-        )}
-      </Modal>
-
-      {/* Rating Modal */}
-      <Modal
-        title="Rate Your Order"
-        open={ratingVisible}
-        onCancel={() => setRatingVisible(false)}
-        onOk={() => {
-          message.success('Thank you for your feedback!')
-          setRatingVisible(false)
-        }}
-      >
-        {selectedOrder && (
-          <div>
-            <Text>How was your experience with order {selectedOrder.orderId}?</Text>
-            <Divider />
-            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-              <Rate defaultValue={5} />
-            </div>
-            <TextArea
-              rows={4}
-              placeholder="Tell us about your experience..."
-              maxLength={500}
-            />
+        ) : (
+          <div style={{ textAlign: 'center', padding: '20px' }}>
+            <InboxOutlined style={{ fontSize: '48px', color: '#ccc' }} />
+            <p>Tracking information not available yet</p>
+            <Text type="secondary">Your order is being processed and tracking details will be available soon.</Text>
           </div>
         )}
       </Modal>
