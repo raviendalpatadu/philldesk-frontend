@@ -794,10 +794,6 @@ const PrescriptionManagement: React.FC = () => {
           <Space direction="vertical" size="small">
             <Text strong>{normalized.patientName}</Text>
             <Text type="secondary" style={{ fontSize: "12px" }}>
-              {record.customer?.age || record.age}Y,{" "}
-              {record.customer?.gender || record.gender}
-            </Text>
-            <Text type="secondary" style={{ fontSize: "12px" }}>
               ID: {record.customer?.id || record.patientId}
             </Text>
           </Space>
@@ -1278,12 +1274,6 @@ const PrescriptionManagement: React.FC = () => {
                 </Descriptions.Item>
                 <Descriptions.Item label="Customer ID">
                   {selectedPrescription.customerId}
-                </Descriptions.Item>
-                <Descriptions.Item label="Age">
-                  {selectedPrescription.customer?.age || "Not provided"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Gender">
-                  {selectedPrescription.customer?.gender || "Not provided"}
                 </Descriptions.Item>
                 <Descriptions.Item label="Contact Info" span={2}>
                   <Text type="secondary">
@@ -2349,13 +2339,6 @@ const PrescriptionManagement: React.FC = () => {
                               <Tag color="red">Customer Emergency</Tag>
                             )}
                           </Space>
-                          <Text
-                            strong
-                            style={{ fontSize: "14px", color: "#1890ff" }}
-                          >
-                            {prescription.patientName} ({prescription.age}Y,{" "}
-                            {prescription.gender})
-                          </Text>
                         </Space>
                       }
                       description={
@@ -2538,8 +2521,7 @@ const PrescriptionManagement: React.FC = () => {
                           strong
                           style={{ fontSize: "14px", color: "#1890ff" }}
                         >
-                          {prescription.patientName} ({prescription.age}Y,{" "}
-                          {prescription.gender})
+                          {prescription.patientName}
                         </Text>
                       </Space>
                     }

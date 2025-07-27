@@ -344,7 +344,7 @@ const CustomerPrescriptions: React.FC = () => {
               style={{ width: '100%' }}
               suffixIcon={<FilterOutlined />}
             >
-              <Option value="All">All Status</Option>
+              <Option value="ALL">All Status</Option>
               <Option value="PENDING">Pending</Option>
               <Option value="APPROVED">Approved</Option>
               <Option value="COMPLETED">Completed</Option>

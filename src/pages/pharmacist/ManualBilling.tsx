@@ -65,6 +65,7 @@ const ManualBilling: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [receivedAmount, setReceivedAmount] = useState<number>(0)
   const [discount, setDiscount] = useState<number>(0)
+  const [tax, setTax] = useState<number>(0)
   const [billPreviewVisible, setBillPreviewVisible] = useState(false)
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [medicineOptions, setMedicineOptions] = useState<Array<{ value: string; label: React.ReactNode; medicine: Medicine }>>([])
@@ -127,7 +128,7 @@ const ManualBilling: React.FC = () => {
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <Text type="success">${medicine.unitPrice.toFixed(2)}</Text>
+                <Text type="success">Rs.{medicine.unitPrice.toFixed(2)}</Text>
                 <br />
                 <Text type="secondary" style={{ fontSize: '11px' }}>
                   Stock: {medicine.quantity || medicine.stock} | Batch No: {medicine.batchNumber || 'N/A'}
@@ -271,12 +272,15 @@ const ManualBilling: React.FC = () => {
   const calculateTotals = () => {
     const subtotal = billItems.reduce((sum, item) => sum + item.subtotal, 0)
     const discountAmount = discount
-    const total = subtotal - discountAmount
+    const taxPrecentage = 0.1
+    const taxAmount = subtotal * taxPrecentage
+    const total = subtotal - discountAmount + taxAmount
     const changeAmount = receivedAmount - total
 
     return {
       subtotal: subtotal.toFixed(2),
       discount: discountAmount.toFixed(2),
+      taxAmount: taxAmount.toFixed(2),
       total: total.toFixed(2),
       change: changeAmount.toFixed(2),
       totalItems: billItems.reduce((sum, item) => sum + item.quantity, 0)
@@ -376,7 +380,7 @@ const ManualBilling: React.FC = () => {
       title: 'Unit Price',
       key: 'unitPrice',
       render: (_: any, record: ManualBillItem) => (
-        <Text>${record.unitPrice.toFixed(2)}</Text>
+        <Text>Rs.{record.unitPrice.toFixed(2)}</Text>
       ),
     },
     {
@@ -403,7 +407,7 @@ const ManualBilling: React.FC = () => {
       title: 'Subtotal',
       key: 'subtotal',
       render: (_: any, record: ManualBillItem) => (
-        <Text strong>${record.subtotal.toFixed(2)}</Text>
+        <Text strong>Rs.{record.subtotal.toFixed(2)}</Text>
       ),
     },
     {
@@ -557,11 +561,15 @@ const ManualBilling: React.FC = () => {
               <div>
                 <Row justify="space-between">
                   <Col>Subtotal:</Col>
-                  <Col><Text strong>${totals.subtotal}</Text></Col>
+                  <Col><Text strong>Rs.{totals.subtotal}</Text></Col>
                 </Row>
                 <Row justify="space-between">
                   <Col>Items:</Col>
                   <Col><Text>{totals.totalItems}</Text></Col>
+                </Row>
+                <Row justify="space-between">
+                  <Col>Tax(10%):</Col>
+                  <Col><Text>{totals.taxAmount}</Text></Col>
                 </Row>
               </div>
 
@@ -578,7 +586,7 @@ const ManualBilling: React.FC = () => {
                   max={parseFloat(totals.subtotal)}
                   value={discount}
                   onChange={(value) => setDiscount(value || 0)}
-                  prefix="$"
+                  prefix="Rs."
                   precision={2}
                 />
               </div>
@@ -588,7 +596,7 @@ const ManualBilling: React.FC = () => {
               {/* Total */}
               <Row justify="space-between">
                 <Col><Text strong style={{ fontSize: '16px' }}>Total:</Text></Col>
-                <Col><Text strong style={{ fontSize: '18px', color: '#52c41a' }}>${totals.total}</Text></Col>
+                <Col><Text strong style={{ fontSize: '18px', color: '#52c41a' }}>Rs.{totals.total}</Text></Col>
               </Row>
 
               <Divider style={{ margin: '12px 0' }} />
@@ -621,7 +629,7 @@ const ManualBilling: React.FC = () => {
                     min={0}
                     value={receivedAmount}
                     onChange={(value) => setReceivedAmount(value || 0)}
-                    prefix="$"
+                    prefix="Rs."
                     precision={2}
                   />
                   {receivedAmount > 0 && (
@@ -635,7 +643,7 @@ const ManualBilling: React.FC = () => {
                               color: parseFloat(totals.change) >= 0 ? '#52c41a' : '#ff4d4f' 
                             }}
                           >
-                            ${totals.change}
+                            Rs.{totals.change}
                           </Text>
                         </Col>
                       </Row>
@@ -714,9 +722,9 @@ const ManualBilling: React.FC = () => {
               <List.Item.Meta
                 avatar={<Avatar icon={<MedicineBoxOutlined />} />}
                 title={`${item.medicineName} - ${item.strength}`}
-                description={`${item.form} | Qty: ${item.quantity} | $${item.unitPrice.toFixed(2)} each`}
+                description={`${item.form} | Qty: ${item.quantity} | Rs.${item.unitPrice.toFixed(2)} each`}
               />
-              <Text strong>${item.subtotal.toFixed(2)}</Text>
+              <Text strong>Rs.{item.subtotal.toFixed(2)}</Text>
             </List.Item>
           )}
         />
@@ -725,26 +733,26 @@ const ManualBilling: React.FC = () => {
 
         <Row justify="space-between" style={{ marginBottom: '8px' }}>
           <Col>Subtotal:</Col>
-          <Col>${totals.subtotal}</Col>
+          <Col>Rs.{totals.subtotal}</Col>
         </Row>
         <Row justify="space-between" style={{ marginBottom: '8px' }}>
           <Col>Discount:</Col>
-          <Col>-${totals.discount}</Col>
+          <Col>Rs.{totals.discount}</Col>
         </Row>
         <Row justify="space-between" style={{ fontSize: '16px', fontWeight: 'bold' }}>
           <Col>Total:</Col>
-          <Col>${totals.total}</Col>
+          <Col>Rs.{totals.total}</Col>
         </Row>
 
         {paymentMethod === 'CASH' && (
           <>
             <Row justify="space-between" style={{ marginTop: '8px' }}>
               <Col>Received:</Col>
-              <Col>${receivedAmount.toFixed(2)}</Col>
+              <Col>Rs.{receivedAmount.toFixed(2)}</Col>
             </Row>
             <Row justify="space-between">
               <Col>Change:</Col>
-              <Col>${totals.change}</Col>
+              <Col>Rs.{totals.change}</Col>
             </Row>
           </>
         )}

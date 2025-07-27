@@ -121,17 +121,17 @@ const LoginPage: React.FC = () => {
             >
               <Form.Item
                 name="email"
-                label="Email Address"
+                label="Username"
                 rules={[
                   {
                     required: true,
-                    message: 'Please enter your email address',
+                    message: 'Please enter your username',
                   }
                 ]}
               >
                 <Input
                   prefix={<UserOutlined />}
-                  placeholder="Enter your email"
+                  placeholder="Enter your username"
                   onChange={handleInputChange}
                 />
               </Form.Item>
@@ -143,11 +143,7 @@ const LoginPage: React.FC = () => {
                   {
                     required: true,
                     message: 'Please enter your password',
-                  },
-                  {
-                    min: 6,
-                    message: 'Password must be at least 6 characters',
-                  },
+                  }
                 ]}
               >
                 <Input.Password

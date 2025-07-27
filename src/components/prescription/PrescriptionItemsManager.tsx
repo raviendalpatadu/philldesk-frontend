@@ -375,8 +375,8 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
       
       const deletedCount = itemsToDelete.size
       const actionMessage = deletedCount > 0 
-        ? `Items saved successfully! ${deletedCount} item(s) deleted. Total: $${pricing.total.toFixed(2)}`
-        : `Items saved successfully! Total: $${pricing.total.toFixed(2)}`
+        ? `Items saved successfully! ${deletedCount} item(s) deleted. Total: Rs.${pricing.total.toFixed(2)}`
+        : `Items saved successfully! Total: Rs.${pricing.total.toFixed(2)}`
       
       message.success(actionMessage)
       
@@ -549,7 +549,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
           onChange={(value) => handleUnitPriceChange(value, index)}
           min={0}
           step={0.01}
-          prefix="$"
+          prefix="Rs."
           style={{ width: '100%' }}
           disabled={!isEditingAllowed}
         />
@@ -560,7 +560,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
       key: 'totalPrice',
       width: 100,
       render: (_: any, record: PrescriptionItem) => (
-        <Text strong>${(record.totalPrice || 0).toFixed(2)}</Text>
+        <Text strong>Rs.{(record.totalPrice || 0).toFixed(2)}</Text>
       )
     },
     {
@@ -683,7 +683,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
                 <Text strong>Subtotal:</Text>
               </Table.Summary.Cell>
               <Table.Summary.Cell index={1} align="right">
-                <Text strong>${pricing.subtotal.toFixed(2)}</Text>
+                <Text strong>Rs{pricing.subtotal.toFixed(2)}</Text>
               </Table.Summary.Cell>
               <Table.Summary.Cell index={2} colSpan={isEditingAllowed ? 2 : 1}></Table.Summary.Cell>
             </Table.Summary.Row>
@@ -693,7 +693,7 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
               </Table.Summary.Cell>
               <Table.Summary.Cell index={1} align="right">
                 <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
-                  ${pricing.total.toFixed(2)}
+                  Rs.{pricing.total.toFixed(2)}
                 </Text>
               </Table.Summary.Cell>
               <Table.Summary.Cell index={2} colSpan={isEditingAllowed ? 2 : 1}></Table.Summary.Cell>
@@ -713,13 +713,13 @@ const PrescriptionItemsManager: React.FC<PrescriptionItemsManagerProps> = ({
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Text>Subtotal:</Text>
-                <Text>${pricing.subtotal.toFixed(2)}</Text>
+                <Text>Rs.{pricing.subtotal.toFixed(2)}</Text>
               </div>
               <Divider style={{ margin: '8px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Text strong style={{ fontSize: '16px' }}>Total:</Text>
                 <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
-                  ${pricing.total.toFixed(2)}
+                  Rs.{pricing.total.toFixed(2)}
                 </Text>
               </div>
             </Space>

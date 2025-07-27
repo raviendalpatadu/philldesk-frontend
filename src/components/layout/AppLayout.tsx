@@ -200,13 +200,7 @@ const AppLayout: React.FC = () => {
                   </Space>
                 ),
                 onClick: () => navigate('/admin/users'),
-              },
-              {
-                key: '/admin/notifications',
-                icon: <BellOutlined />,
-                label: 'Notification Management',
-                onClick: () => navigate('/admin/notifications'),
-              },
+              }
             ],
           },
           {

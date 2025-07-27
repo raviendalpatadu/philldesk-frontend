@@ -65,6 +65,7 @@ interface Order {
   key: string;
   orderId: string;
   date: string;
+  billId: number; // Added billId for downloading bills
   prescriptionId: string;
   doctorName: string;
   items: OrderItem[];
@@ -81,6 +82,7 @@ interface Order {
   courier: string;
   shippingAddress?: string;
   paymentMethod?: string;
+  paymentStatus?: string;
   orderNotes?: string;
   canReorder: boolean;
   rating?: number;
@@ -210,9 +212,7 @@ const OrdersPage: React.FC = () => {
   // Download bill as PDF
   const handleDownloadBill = async (order: Order) => {
     try {
-      // Extract billId from orderId or use orderId if it's the billId
-      const billId = parseInt(order.orderId.replace(/[^0-9]/g, '')) || parseInt(order.orderId)
-      await customerService.downloadBill(billId)
+      await customerService.downloadBill(order.billId)
       message.success('Bill downloaded successfully!')
     } catch (error) {
       console.error('Error downloading bill:', error)
@@ -330,14 +330,16 @@ const OrdersPage: React.FC = () => {
             </Tooltip>
           )}
           
-          <Tooltip title="Download Bill">
-            <Button 
-              type="text" 
-              icon={<DownloadOutlined />} 
-              onClick={() => handleDownloadBill(record)}
-              size="small"
-            />
-          </Tooltip>
+          {record.paymentStatus === "PAID" && (
+            <Tooltip title="Download Bill">
+              <Button 
+                type="text" 
+                icon={<DownloadOutlined />} 
+                onClick={() => handleDownloadBill(record)}
+                size="small"
+              />
+            </Tooltip>
+          )}
         </Space>
       ),
     },

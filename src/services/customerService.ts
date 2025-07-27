@@ -647,6 +647,7 @@ const transformOrderData = (apiData: any): Order => {
   return {
     key: apiData.orderId,
     orderId: apiData.orderId,
+    billId: apiData.billId,
     date: apiData.date,
     prescriptionId: apiData.prescriptionId,
     doctorName: apiData.doctorName,
@@ -672,6 +673,7 @@ const transformOrderData = (apiData: any): Order => {
     courier: apiData.courier || 'PhillDesk Delivery',
     shippingAddress: apiData.shippingAddress,
     paymentMethod: apiData.paymentMethod,
+    paymentStatus: apiData.paymentStatus,
     orderNotes: apiData.orderNotes,
     canReorder: apiData.canReorder || false,
     rating: undefined,
@@ -715,6 +717,7 @@ const getStatusCode = (status: string): number => {
 interface Order {
   key: string;
   orderId: string;
+  billId: number;
   date: string;
   prescriptionId: string;
   doctorName: string;
@@ -732,6 +735,7 @@ interface Order {
   courier: string;
   shippingAddress?: string;
   paymentMethod?: string;
+  paymentStatus?: string;
   orderNotes?: string;
   canReorder: boolean;
   rating?: number;
