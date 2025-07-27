@@ -166,11 +166,11 @@ The application uses JWT-based authentication with role-based access control:
 
 For testing purposes, you can use these demo credentials:
 
-| Role | Email | Password |
+| Role | username | Password |
 |------|-------|----------|
-| **Admin** | admin@philldesk.com | admin123 |
-| **Pharmacist** | pharmacist@philldesk.com | pharmacist123 |
-| **Customer** | customer@philldesk.com | customer123 |
+| **Admin** | admin | password123 |
+| **Pharmacist** | pharmacist | password123 |
+| **Customer** | customer | password123 |
 
 ### User Roles & Permissions
 
@@ -264,9 +264,6 @@ The production build includes:
 4. Push to the branch (\`git push origin feature/new-feature\`)
 5. Open a Pull Request
 
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## 🆘 Support & Contact
 
