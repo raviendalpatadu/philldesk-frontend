@@ -76,60 +76,58 @@ Before you begin, ensure you have the following installed:
 
 ### 1. Clone the Repository
 
-\`\`\`bash
+```bash
 git clone <repository-url>
 cd philldesk-frontend
-\`\`\`
+```
 
 ### 2. Install Dependencies
 
-\`\`\`bash
+```bash
 npm install
 # or
 yarn install
-\`\`\`
+```
 
 ### 3. Environment Configuration
 
-Create a \`.env\` file in the root directory:
+Create a `.env` file in the root directory:
 
-\`\`\`env
+```env
 # API Configuration
 VITE_API_BASE_URL=http://localhost:8080/api
 
 # Application Configuration
 VITE_APP_NAME=PhillDesk
 VITE_APP_VERSION=1.0.0
-
+```
 ### 4. Start Development Server
 
-\`\`\`bash
+```bash
 npm run dev
-# or
-yarn dev
-\`\`\`
+```
 
 The application will be available at \`http://localhost:3000\`
 
 ### 5. Build for Production
 
-\`\`\`bash
+```bash
 npm run build
 # or
 yarn build
-\`\`\`
+```
 
 ### 6. Preview Production Build
 
-\`\`\`bash
+```bash
 npm run preview
 # or
 yarn preview
-\`\`\`
+```
 
 ## 📁 Project Structure
 
-\`\`\`
+```
 src/
 ├── components/          # Reusable UI components
 │   ├── auth/           # Authentication-related components
@@ -152,7 +150,7 @@ src/
 ├── App.tsx             # Main application component
 ├── main.tsx            # Application entry point
 └── index.css           # Global styles
-\`\`\`
+```
 
 ## 🔐 Authentication
 
@@ -287,4 +285,5 @@ For support or questions:
 - [ ] Error tracking and logging
 - [ ] Automated CI/CD pipeline
 - [ ] Docker containerization
+
 
