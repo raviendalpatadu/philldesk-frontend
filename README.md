@@ -101,10 +101,6 @@ VITE_API_BASE_URL=http://localhost:8080/api
 VITE_APP_NAME=PhillDesk
 VITE_APP_VERSION=1.0.0
 
-# Google Drive API (for file uploads)
-VITE_GOOGLE_DRIVE_CLIENT_ID=your_google_drive_client_id
-\`\`\`
-
 ### 4. Start Development Server
 
 \`\`\`bash
@@ -291,3 +287,4 @@ For support or questions:
 - [ ] Error tracking and logging
 - [ ] Automated CI/CD pipeline
 - [ ] Docker containerization
+
